@@ -62,6 +62,15 @@ password: root
 - SQL 文件使用 `SET NAMES utf8mb4`，脚本通过 MySQL 直接读取文件，避免中文乱码。
 - 本轮已执行 `backend/sql/03_add_purchases_exchanges.sql`，当前 `purchases` 和 `exchanges` 表已在本地数据库创建完成。
 
+后台数据大盘口径：
+
+- 用户数来自 `users`，商品数来自 `items`。
+- 今日/累计交易额来自 `payments` 中 `status = 'PAID'` 的支付单。
+- 近 7 日交易额按 `payments.paid_at` 聚合。
+- 分类商品占比按 `categories` 左连接未删除 `items` 聚合。
+- 校区分布按未删除 `items.campus` 聚合。
+- 待审核实名、待处理举报、待仲裁纠纷和待处理订单分别来自 `users`、`reports`、`disputes`、`orders`。
+
 ## 1. 设计原则
 
 - 金额字段使用 `DECIMAL(10,2)`。

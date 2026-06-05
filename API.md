@@ -852,7 +852,7 @@ PATCH /api/swap-requests/{requestId}/cancel
 
 `GET /api/admin/dashboard`
 
-当前默认数据响应：
+返回真实数据库统计、近 7 日支付交易额、分类商品占比和校区商品分布：
 
 ```json
 {
@@ -861,12 +861,34 @@ PATCH /api/swap-requests/{requestId}/cancel
   "data": {
     "totalUsers": 0,
     "todayNewUsers": 0,
+    "totalItems": 0,
     "onSaleItems": 0,
     "todayAmount": 0.00,
-    "activeUsers": 0
+    "totalAmount": 0.00,
+    "activeUsers": 0,
+    "pendingVerifiedUsers": 0,
+    "pendingReports": 0,
+    "pendingDisputes": 0,
+    "pendingOrders": 0,
+    "amountTrend": [
+      { "date": "05-30", "dayKey": "2026-05-30", "amount": 0.00 }
+    ],
+    "categoryDistribution": [
+      { "categoryId": 1, "category": "教材教辅", "count": 0 }
+    ],
+    "campusDistribution": [
+      { "campus": "校本部", "count": 0 }
+    ]
   }
 }
 ```
+
+统计口径：
+
+- 用户、商品、订单、支付单、举报、纠纷均从数据库实时聚合。
+- 交易额按 `payments.status = 'PAID'` 的支付单统计。
+- 活跃用户按当日登录、当日订单参与和当日消息发送去重统计。
+- 前端后台数据大盘不再读取 `adminMock.js`，全部使用该接口返回值。
 
 ### 后台查询接口
 

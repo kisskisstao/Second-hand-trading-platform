@@ -588,6 +588,23 @@ PATCH /api/swap-requests/{requestId}/cancel
 - 求购和置换已有列表、发布、状态和匹配推荐；详情页、我的求购/置换、消息通知还未补。
 - 后台分类管理仍是部分占位。
 
+## 本次追加更新：后台数据大盘真实同步
+
+### 后端
+
+- `GET /api/admin/dashboard` 已扩展为真实数据库聚合接口。
+- 统计卡片包含用户、商品、支付交易额、活跃用户和待处理项。
+- 图表数据包含近 7 日已支付交易额、分类商品占比、校区商品分布。
+
+### 前端
+
+- `AdminDashboardView.vue` 不再使用 `adminMock.js` 和前端 mock 商品。
+- 数据卡片、ECharts 折线图、饼图、柱状图、快捷待处理入口全部读取 `adminApi.dashboard()`。
+
+### 文档
+
+- `README.md`、`API.md`、`DATABASE.md`、`WORK.md` 已同步后台数据大盘真实统计口径。
+
 ### 验证结果
 
 后端：
