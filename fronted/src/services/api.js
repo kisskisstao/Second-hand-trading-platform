@@ -38,6 +38,7 @@ export const userApi = {
   updateMe: (data) => api.put('/users/me', data),
   getMyItems: (params) => api.get('/users/me/items', { params }),
   getMyFavorites: (params) => api.get('/users/me/favorites', { params }),
+  getMyNotifications: (params) => api.get('/users/me/notifications', { params }),
   getReviews: (userId, params) => api.get(`/users/${userId}/reviews`, { params }),
 }
 

@@ -156,6 +156,27 @@ button {
   padding: 10px;
 }
 
+.notice-panel li strong,
+.notice-panel li p,
+.notice-panel li small {
+  display: block;
+}
+
+.notice-panel li strong {
+  color: var(--text-strong);
+  font-weight: 900;
+}
+
+.notice-panel li p {
+  margin: 4px 0;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+.notice-panel li small {
+  color: var(--text-muted);
+}
+
 .page-wrap {
   width: 1180px;
   margin: 0 auto;
@@ -895,7 +916,39 @@ button {
 }
 
 .profile-item-actions {
+  flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.notification-list {
+  display: grid;
+  gap: 12px;
+}
+
+.notification-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px;
+}
+
+.notification-row strong {
+  color: var(--text-strong);
+  font-weight: 900;
+}
+
+.notification-row p {
+  margin: 8px 0;
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+.notification-row small {
+  color: var(--text-muted);
 }
 
 .mini-order {

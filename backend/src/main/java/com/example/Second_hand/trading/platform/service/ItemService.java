@@ -189,6 +189,8 @@ public class ItemService {
 		}
 		item.setStatus("REMOVED");
 		itemMapper.updateById(item);
+		notifySeller(item, "商品已被管理员下架",
+				"你的商品「" + item.getTitle() + "」已被管理员下架。如需重新发布，请根据平台规则修改后联系管理员。");
 		return true;
 	}
 
@@ -200,6 +202,8 @@ public class ItemService {
 		}
 		item.setStatus("ON_SALE");
 		itemMapper.updateById(item);
+		notifySeller(item, "商品已被管理员重新上架",
+				"你的商品「" + item.getTitle() + "」已由管理员重新上架。");
 		return true;
 	}
 
@@ -210,6 +214,8 @@ public class ItemService {
 		item.setStatus("REMOVED");
 		item.setDeleted(1);
 		itemMapper.updateById(item);
+		notifySeller(item, "商品已被管理员删除",
+				"你的商品「" + item.getTitle() + "」已被管理员删除，不再对外展示。");
 		return true;
 	}
 
@@ -534,6 +540,16 @@ public class ItemService {
 		if (count != null && count > 0) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商品存在进行中的订单，不能删除");
 		}
+	}
+
+	private void notifySeller(ItemEntity item, String title, String content) {
+		if (item == null || item.getSellerId() == null) {
+			return;
+		}
+		jdbcTemplate.update("""
+				INSERT INTO notifications (user_id, type, title, content)
+				VALUES (?, 'SYSTEM', ?, ?)
+				""", item.getSellerId(), title, content);
 	}
 
 	private List<String> imageUrls(Map<String, Object> body) {

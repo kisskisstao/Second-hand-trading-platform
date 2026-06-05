@@ -15,12 +15,14 @@ const validItemStatusTabs = ['onSale', 'removed', 'sold', 'drafts']
 const activeItemStatus = ref(validItemStatusTabs.includes(route.query.itemStatus) ? route.query.itemStatus : 'onSale')
 const myProducts = ref([])
 const favoriteProducts = ref([])
+const notifications = ref([])
 const loadingItems = ref(false)
 
 const menuItems = [
   { key: 'selling', label: '我的在售商品' },
   { key: 'orders', label: '我的订单' },
   { key: 'favorites', label: '我的收藏' },
+  { key: 'notifications', label: '系统通知' },
   { key: 'reviews', label: '我的评价' },
   { key: 'wanted', label: '我的求购' },
   { key: 'swap', label: '以物换物' },
@@ -101,12 +103,31 @@ async function fetchUserItems() {
     ])
     myProducts.value = normalizeItemPage(itemsResponse).list
     favoriteProducts.value = normalizeItemPage(favoritesResponse).list
+    await fetchNotifications()
   } catch (error) {
     myProducts.value = []
     favoriteProducts.value = []
+    notifications.value = []
     console.error(error)
   } finally {
     loadingItems.value = false
+  }
+}
+
+async function fetchNotifications() {
+  try {
+    const response = await userApi.getMyNotifications({ page: 1, pageSize: 100 })
+    notifications.value = (response.data?.list || []).map((row) => ({
+      id: row.notificationId || row.id,
+      title: row.title || '系统通知',
+      content: row.content || '',
+      type: row.type || 'SYSTEM',
+      readAt: row.readAt || '',
+      createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+    }))
+  } catch (error) {
+    notifications.value = []
+    console.error(error)
   }
 }
 
@@ -139,6 +160,17 @@ async function publishProduct(product) {
   }
 }
 
+async function offShelfProduct(product) {
+  try {
+    await itemApi.offShelf(product.id)
+    ElMessage.success('商品已下架')
+    await fetchUserItems()
+    activeItemStatus.value = 'removed'
+  } catch (error) {
+    ElMessage.error(error.message || '商品下架失败')
+  }
+}
+
 function deleteProduct(product) {
   ElMessageBox.confirm(`确认删除「${product.title}」？删除后不会出现在个人中心。`, '删除商品', {
     confirmButtonText: '确认删除',
@@ -153,6 +185,10 @@ function deleteProduct(product) {
       ElMessage.error(error.message || '商品删除失败')
     }
   }).catch(() => {})
+}
+
+function viewProduct(product) {
+  router.push(`/items/${product.id}`)
 }
 </script>
 
@@ -209,11 +245,7 @@ function deleteProduct(product) {
               <el-tab-pane :label="`草稿（${draftProducts.length}）`" name="drafts" />
             </el-tabs>
 
-            <div v-if="activeItemStatus === 'onSale' && onSaleProducts.length > 0" class="product-list">
-              <ProductListItem v-for="product in onSaleProducts" :key="product.id" :product="product" />
-            </div>
-
-            <div v-else-if="activeItemStatus !== 'onSale' && currentStatusProducts.length > 0" class="profile-item-list">
+            <div v-if="currentStatusProducts.length > 0" class="profile-item-list">
               <div v-for="product in currentStatusProducts" :key="product.id" class="profile-item-row">
                 <el-image class="profile-item-thumb" :src="product.image" fit="cover" />
                 <div class="profile-item-main">
@@ -231,6 +263,22 @@ function deleteProduct(product) {
                 </div>
                 <div class="profile-item-actions">
                   <el-button
+                    v-if="product.status === 'ON_SALE'"
+                    type="primary"
+                    plain
+                    @click="viewProduct(product)"
+                  >
+                    查看详情
+                  </el-button>
+                  <el-button
+                    v-if="product.status === 'ON_SALE'"
+                    type="warning"
+                    plain
+                    @click="offShelfProduct(product)"
+                  >
+                    下架
+                  </el-button>
+                  <el-button
                     v-if="['drafts', 'removed'].includes(activeItemStatus)"
                     type="primary"
                     @click="publishProduct(product)"
@@ -238,7 +286,6 @@ function deleteProduct(product) {
                     发布上架
                   </el-button>
                   <el-button
-                    v-if="['drafts', 'removed'].includes(activeItemStatus)"
                     type="danger"
                     plain
                     @click="deleteProduct(product)"
@@ -259,6 +306,18 @@ function deleteProduct(product) {
           <div v-else-if="activeMenu === 'favorites'" class="product-list">
             <ProductListItem v-for="product in favoriteProducts" :key="product.id" :product="product" />
             <el-empty v-if="favoriteProducts.length === 0" description="暂无收藏商品" />
+          </div>
+
+          <div v-else-if="activeMenu === 'notifications'" class="notification-list">
+            <div v-for="notice in notifications" :key="notice.id" class="notification-row">
+              <div>
+                <strong>{{ notice.title }}</strong>
+                <p>{{ notice.content }}</p>
+                <small>{{ notice.createdAt }}</small>
+              </div>
+              <el-tag type="warning" effect="plain">系统信息</el-tag>
+            </div>
+            <el-empty v-if="notifications.length === 0" description="暂无系统通知" />
           </div>
 
           <div v-else-if="activeMenu === 'reviews'" class="review-list">

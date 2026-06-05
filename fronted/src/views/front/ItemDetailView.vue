@@ -1,12 +1,12 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChatDotRound, Flag, StarFilled } from '@element-plus/icons-vue'
 import ProductGridCard from '../../components/product/ProductGridCard.vue'
-import { conditionTagMap, products } from '../../data/mock'
+import { conditionTagMap } from '../../data/mock'
 import { chatApi, itemApi, orderApi } from '../../services/api'
-import { normalizeComment, normalizeItem } from '../../services/normalizers'
+import { normalizeComment, normalizeItem, normalizeItemPage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
@@ -15,15 +15,11 @@ const authStore = useAuthStore()
 const comment = ref('')
 const favorited = ref(false)
 const loading = ref(false)
+const loadingRelated = ref(false)
 const submittingComment = ref(false)
-const product = ref(normalizeItem(products[0] || {}))
+const product = ref(normalizeItem({}))
 const comments = ref([])
-
-const relatedProducts = computed(() =>
-  products
-    .filter((item) => item.id !== product.value.id && item.campus === product.value.campus)
-    .slice(0, 3),
-)
+const relatedProducts = ref([])
 
 watch(
   () => route.params.itemId,
@@ -51,11 +47,17 @@ function requireLogin(actionText) {
 
 async function fetchDetail() {
   loading.value = true
+  product.value = normalizeItem({})
+  comments.value = []
+  relatedProducts.value = []
   try {
     const response = await itemApi.detail(route.params.itemId)
     product.value = normalizeItem(response.data)
-    await fetchComments()
+    await Promise.all([fetchComments(), fetchRelatedProducts()])
   } catch (error) {
+    product.value = normalizeItem({})
+    comments.value = []
+    relatedProducts.value = []
     ElMessage.error(error.message || '商品详情加载失败')
   } finally {
     loading.value = false
@@ -69,6 +71,30 @@ async function fetchComments() {
   } catch (error) {
     comments.value = []
     console.error(error)
+  }
+}
+
+async function fetchRelatedProducts() {
+  if (!product.value.campus) {
+    relatedProducts.value = []
+    return
+  }
+
+  loadingRelated.value = true
+  try {
+    const response = await itemApi.list({
+      campus: product.value.campus,
+      page: 1,
+      pageSize: 8,
+    })
+    relatedProducts.value = normalizeItemPage(response).list
+      .filter((item) => String(item.id) !== String(product.value.id))
+      .slice(0, 3)
+  } catch (error) {
+    relatedProducts.value = []
+    console.error(error)
+  } finally {
+    loadingRelated.value = false
   }
 }
 
@@ -163,13 +189,13 @@ async function submitComment() {
 
 <template>
   <main class="page-wrap detail-page" v-loading="loading">
-    <el-breadcrumb separator="/">
+    <el-breadcrumb v-if="product.id" separator="/">
       <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
       <el-breadcrumb-item>{{ product.category }}</el-breadcrumb-item>
       <el-breadcrumb-item>{{ product.title }}</el-breadcrumb-item>
     </el-breadcrumb>
 
-    <section class="detail-main">
+    <section v-if="product.id" class="detail-main">
       <div class="detail-gallery">
         <el-carousel height="430px" indicator-position="outside">
           <el-carousel-item v-for="image in product.imageUrls" :key="image">
@@ -213,7 +239,7 @@ async function submitComment() {
       </el-card>
     </section>
 
-    <section class="detail-sections">
+    <section v-if="product.id" class="detail-sections">
       <el-card shadow="never">
         <template #header>商品详细描述</template>
         <p class="long-text">{{ product.desc }}</p>
@@ -239,14 +265,21 @@ async function submitComment() {
 
       <el-card shadow="never">
         <template #header>同校区相关推荐</template>
-        <div class="product-grid three">
-          <ProductGridCard
-            v-for="item in relatedProducts.length ? relatedProducts : products.slice(1, 4)"
-            :key="item.id"
-            :product="item"
-          />
+        <div class="related-products-panel" v-loading="loadingRelated">
+          <div v-if="relatedProducts.length > 0" class="product-grid three">
+            <ProductGridCard
+              v-for="item in relatedProducts"
+              :key="item.id"
+              :product="item"
+            />
+          </div>
+          <el-empty v-else description="暂无同校区真实商品推荐" />
         </div>
       </el-card>
     </section>
+
+    <el-empty v-else-if="!loading" description="商品不存在、已下架或仍在草稿箱">
+      <el-button type="primary" @click="router.push('/items')">返回商品列表</el-button>
+    </el-empty>
   </main>
 </template>

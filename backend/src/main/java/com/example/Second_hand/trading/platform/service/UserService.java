@@ -39,6 +39,19 @@ public class UserService {
 		return itemService.favoriteItems(userId);
 	}
 
+	public List<Map<String, Object>> notifications(Long userId) {
+		if (userId == null) {
+			return List.of();
+		}
+		return jdbcTemplate.queryForList("""
+				SELECT id AS notificationId, type, title, content, read_at AS readAt, created_at AS createdAt
+				FROM notifications
+				WHERE user_id = ?
+				ORDER BY created_at DESC
+				LIMIT 100
+				""", userId);
+	}
+
 	public List<Map<String, Object>> reviews(Integer userId) {
 		return List.of();
 	}

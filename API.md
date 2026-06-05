@@ -296,6 +296,12 @@ GET /api/exchanges/{exchangeId}/matches
 
 需要 `USER` JWT。按 JWT 中的用户 ID 查询 `favorites`，并返回收藏的真实商品列表。
 
+### 我的系统通知
+
+`GET /api/users/me/notifications`
+
+需要 `USER` JWT。返回当前用户的 `notifications` 系统通知。管理员下架、重新上架或删除用户商品时会通知该商品卖家；管理员发布平台公告时会按公告范围通知目标普通用户。
+
 ### 用户评价
 
 `GET /api/users/{userId}/reviews`
@@ -403,6 +409,8 @@ GET /api/items?page=1&pageSize=10&keyword=iPad&campus=东校区&sort=price_asc
 `GET /api/items/{itemId}`
 
 公开接口，返回指定上架商品详情。商品 ID 不存在、已删除，或状态为 `DRAFT` / `REMOVED` / `SOLD` 时返回统一 404 响应。
+
+前端详情页“同校区相关推荐”复用 `GET /api/items?campus=当前校区`，排除当前商品后最多展示 3 个真实数据库商品；只有 1 个或 2 个时按实际数量展示，不用前端固定模板补足。
 
 ### 发布商品
 
@@ -970,8 +978,9 @@ DELETE /api/admin/notices/{noticeId}
 - 后台商品下架真实更新 `items.status = 'REMOVED'`。
 - 后台商品重新上架真实更新 `items.status = 'ON_SALE'`。
 - 后台商品删除真实软删除 `items.deleted = 1`。
+- 后台商品下架、重新上架和删除会向商品卖家写入 `notifications.type = 'SYSTEM'` 的系统通知。
 - 后台新增商品需要传 `sellerId`，后续买家咨询会按该商品 `seller_id` 与真实卖家建聊。
-- 后台公告新增、编辑、发布和删除真实写入 `announcements`。
+- 后台公告新增、编辑、发布和删除真实写入 `announcements`；公告发布时会按全平台或指定校区向普通用户生成系统通知。
 - 用户禁用、分类管理、举报/纠纷处理、系统设置等仍有部分占位。
 
 ## 服务层拆分

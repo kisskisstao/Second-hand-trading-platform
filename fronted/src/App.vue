@@ -1,14 +1,41 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Bell, DataAnalysis, House, Plus, QuestionFilled, Search, User } from '@element-plus/icons-vue'
+import { userApi } from './services/api'
 import { useAuthStore } from './stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const keyword = ref('')
-const notifications = []
+const notifications = ref([])
+const unreadNotifications = computed(() => notifications.value.filter((notice) => !notice.readAt).length)
+
+function normalizeNotice(row = {}) {
+  return {
+    id: row.notificationId || row.id,
+    title: row.title || '系统通知',
+    content: row.content || '',
+    readAt: row.readAt || '',
+    createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+  }
+}
+
+async function loadNotifications() {
+  if (!authStore.isLoggedIn || authStore.isAdmin) {
+    notifications.value = []
+    return
+  }
+  try {
+    const response = await userApi.getMyNotifications({ page: 1, pageSize: 20 })
+    notifications.value = (response.data?.list || []).map(normalizeNotice)
+  } catch (error) {
+    notifications.value = []
+    console.error(error)
+  }
+}
 
 function goSearch() {
   router.push({
@@ -41,9 +68,22 @@ function goPublish() {
 
 function logout() {
   authStore.logout()
+  notifications.value = []
   ElMessage.success('已退出登录')
   router.push('/')
 }
+
+onMounted(loadNotifications)
+
+watch(
+  () => [authStore.isLoggedIn, authStore.isAdmin],
+  () => loadNotifications(),
+)
+
+watch(
+  () => route.fullPath,
+  () => loadNotifications(),
+)
 </script>
 
 <template>
@@ -106,16 +146,23 @@ function logout() {
 
           <el-popover placement="bottom-end" width="320" trigger="click">
             <template #reference>
-              <el-badge :value="notifications.length" :hidden="notifications.length === 0" class="notice-badge">
+              <el-badge :value="unreadNotifications || notifications.length" :hidden="notifications.length === 0" class="notice-badge">
                 <el-button :icon="Bell" circle size="large" aria-label="消息通知" />
               </el-badge>
             </template>
             <div class="notice-panel">
               <h3>消息通知</h3>
               <ul v-if="notifications.length > 0">
-                <li v-for="notice in notifications" :key="notice">{{ notice }}</li>
+                <li v-for="notice in notifications.slice(0, 5)" :key="notice.id">
+                  <strong>{{ notice.title }}</strong>
+                  <p>{{ notice.content }}</p>
+                  <small>{{ notice.createdAt }}</small>
+                </li>
               </ul>
               <el-empty v-else description="暂无消息" :image-size="72" />
+              <el-button text type="primary" @click="router.push({ path: '/profile', query: { tab: 'notifications' } })">
+                查看系统通知
+              </el-button>
               <el-button text type="primary" @click="router.push('/chats')">查看聊天消息</el-button>
             </div>
           </el-popover>

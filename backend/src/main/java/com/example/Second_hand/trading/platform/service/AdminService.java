@@ -191,11 +191,15 @@ public class AdminService {
 		if (key == null) {
 			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "公告创建失败");
 		}
+		if ("PUBLISHED".equals(payload.status())) {
+			notifyAnnouncementUsers(key.longValue(), payload);
+		}
 		return notice(key.longValue());
 	}
 
 	@Transactional
 	public boolean updateNotice(Integer noticeId, Map<String, Object> body) {
+		String oldStatus = noticeStatusById(noticeId);
 		NoticePayload payload = noticePayload(body);
 		int updated = jdbcTemplate.update("""
 				UPDATE announcements
@@ -206,6 +210,9 @@ public class AdminService {
 				payload.popupEnabled() ? 1 : 0, payload.status(), payload.publishedAt(), noticeId);
 		if (updated == 0) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
+		}
+		if (!"PUBLISHED".equals(oldStatus) && "PUBLISHED".equals(payload.status())) {
+			notifyAnnouncementUsers(noticeId.longValue(), payload);
 		}
 		return true;
 	}
@@ -231,6 +238,38 @@ public class AdminService {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
 		}
 		return rows.get(0);
+	}
+
+	private String noticeStatusById(Integer noticeId) {
+		List<String> statuses = jdbcTemplate.queryForList(
+				"SELECT status FROM announcements WHERE id = ? LIMIT 1", String.class, noticeId);
+		if (statuses.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
+		}
+		return statuses.get(0);
+	}
+
+	private void notifyAnnouncementUsers(Long noticeId, NoticePayload payload) {
+		String targetSql = "ALL".equals(payload.scopeType())
+				? "SELECT id FROM users WHERE deleted = 0 AND status = 'NORMAL'"
+				: "SELECT id FROM users WHERE deleted = 0 AND status = 'NORMAL' AND campus = ?";
+		List<Long> userIds = "ALL".equals(payload.scopeType())
+				? jdbcTemplate.queryForList(targetSql, Long.class)
+				: jdbcTemplate.queryForList(targetSql, Long.class, payload.campus());
+		for (Long userId : userIds) {
+			jdbcTemplate.update("""
+					INSERT INTO notifications (user_id, type, title, content)
+					VALUES (?, 'SYSTEM', ?, ?)
+					""", userId, truncate("平台公告：" + payload.title(), 150),
+					truncate(payload.content(), 1000));
+		}
+	}
+
+	private String truncate(String value, int maxLength) {
+		if (value == null || value.length() <= maxLength) {
+			return value;
+		}
+		return value.substring(0, maxLength);
 	}
 
 	private NoticePayload noticePayload(Map<String, Object> body) {

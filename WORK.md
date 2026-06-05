@@ -589,7 +589,7 @@ PATCH /api/swap-requests/{requestId}/cancel
 ### 当前剩余边界
 
 - 商品修改 `PUT /api/items/{itemId}` 仍是成功占位。
-- 求购和置换已有列表、发布、状态和匹配推荐；详情页、我的求购/置换、消息通知还未补。
+- 求购和置换已有列表、发布、状态和匹配推荐；详情页、我的求购/置换还未补。管理员商品处理和公告发布的系统通知已补。
 - 后台分类管理仍是部分占位。
 
 ## 本次追加更新：后台数据大盘真实同步
@@ -623,6 +623,16 @@ PATCH /api/swap-requests/{requestId}/cancel
 - `ItemService`：商品创建不再把数据库第一张旧图作为默认封面；没有传图片时不写 `item_images`。
 - `AdminNoticesView.vue`、`AdminService`：后台公告列表、新增、编辑、发布、删除接入 `announcements` 表，不再读取实例通知数据。
 - `backend/sql/02_seed_data.sql`：补充重置 `files`、`announcements`、`notifications` 等业务表自增。
+
+## 本次追加更新：详情推荐、本人商品删除和系统通知
+
+- `ItemDetailView.vue`：同校区相关推荐改为调用 `/api/items` 查询真实同校区商品，排除当前商品；数据库有 1 个展示 1 个、有 2 个展示 2 个、最多展示 3 个；没有真实商品时显示空状态，不再从 `mock.js` 展示固定模板。
+- `ProfileCenterView.vue`：我的发布统一使用带操作按钮的商品行，上架、下架、已出、草稿商品都提供删除入口；上架商品可查看详情或下架。
+- `GET /api/users/me/notifications`：新增当前用户系统通知接口。
+- `ItemService`：管理员下架、重新上架或删除商品时，向该商品卖家写入 `notifications`。
+- `AdminService`：管理员发布公告时，按全平台或指定校区向普通用户写入系统通知。
+- `App.vue`：顶部铃铛读取系统通知；个人中心新增“系统通知”菜单。
+- `.gitignore`：忽略 `backend/uploads/`，避免提交本地上传文件。
 
 ### 验证结果
 
