@@ -1,26 +1,42 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import ProductGridCard from '../../components/product/ProductGridCard.vue'
-import { products } from '../../data/mock'
+import { itemApi } from '../../services/api'
+import { normalizeItemPage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const activeTab = ref('latest')
+const products = ref([])
+const loading = ref(false)
 
 const recommendedProducts = computed(() => {
   if (activeTab.value === 'hot') {
-    return [...products].sort((a, b) => b.hot - a.hot).slice(0, 4)
+    return [...products.value].sort((a, b) => b.hot - a.hot).slice(0, 4)
   }
 
   if (activeTab.value === 'near') {
-    return products.filter((product) => product.campus === '校本部').slice(0, 4)
+    return products.value.filter((product) => product.campus === '校本部').slice(0, 4)
   }
 
-  return products.slice(0, 4)
+  return products.value.slice(0, 4)
 })
+
+async function fetchRecommendedProducts() {
+  loading.value = true
+  try {
+    const response = await itemApi.list({ page: 1, pageSize: 8, sort: 'latest' })
+    products.value = normalizeItemPage(response).list
+  } catch (error) {
+    products.value = []
+    console.error(error)
+  } finally {
+    loading.value = false
+  }
+}
 
 function goPublish() {
   if (authStore.isLoggedIn) {
@@ -43,6 +59,8 @@ function goPublish() {
 function goItemList() {
   router.push('/items')
 }
+
+onMounted(fetchRecommendedProducts)
 </script>
 
 <template>
@@ -80,9 +98,10 @@ function goItemList() {
         </div>
       </div>
 
-      <div class="product-grid">
+      <div v-if="recommendedProducts.length > 0" v-loading="loading" class="product-grid">
         <ProductGridCard v-for="product in recommendedProducts" :key="product.id" :product="product" />
       </div>
+      <el-empty v-else-if="!loading" description="暂无商品，注册登录后可以发布第一件闲置" />
     </section>
   </main>
 </template>

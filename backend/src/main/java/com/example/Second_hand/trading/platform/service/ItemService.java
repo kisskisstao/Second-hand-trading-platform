@@ -141,6 +141,19 @@ public class ItemService {
 	}
 
 	@Transactional
+	public Map<String, Object> adminCreateItem(Map<String, Object> body) {
+		Long sellerId = optionalLong(body.get("sellerId"));
+		if (sellerId == null) {
+			sellerId = optionalLong(body.get("userId"));
+		}
+		if (sellerId == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择商品卖家");
+		}
+		ensureActiveUser(sellerId);
+		return createItem(sellerId, body);
+	}
+
+	@Transactional
 	public boolean offShelfItem(Long sellerId, Integer itemId) {
 		ItemEntity item = requireOwnedItem(sellerId, itemId);
 		if ("SOLD".equals(item.getStatus())) {
@@ -508,6 +521,17 @@ public class ItemService {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商品不存在");
 		}
 		return item;
+	}
+
+	private void ensureActiveUser(Long userId) {
+		Long count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				FROM users
+				WHERE id = ? AND deleted = 0 AND status = 'NORMAL'
+				""", Long.class, userId);
+		if (count == null || count == 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "卖家账号不存在或已禁用");
+		}
 	}
 
 	private void ensureNoActiveOrder(Long itemId) {

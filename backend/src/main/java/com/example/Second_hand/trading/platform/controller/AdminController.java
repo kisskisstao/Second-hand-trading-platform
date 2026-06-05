@@ -61,6 +61,11 @@ public class AdminController {
 		return ApiResponse.success(PageResponse.of(itemService.items(), 1, 10));
 	}
 
+	@PostMapping("/items")
+	public ApiResponse<Map<String, Object>> createItem(@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(itemService.adminCreateItem(body));
+	}
+
 	@PatchMapping("/items/{itemId}/remove")
 	public ApiResponse<Boolean> removeItem(@PathVariable Integer itemId, @RequestBody(required = false) Map<String, Object> body) {
 		return ApiResponse.success(itemService.adminOffShelfItem(itemId));

@@ -6,8 +6,8 @@
 
 - 普通用户默认 0 个，注册后才写入数据库。
 - 管理员默认 1 个：`admin/admin123456`。
-- 商品基础数据 20 条。
-- 订单、聊天、求购、置换、举报、纠纷、通知、公告等演示业务数据默认清空。
+- 商品默认 0 条；初始化会清空演示商品，后续由注册用户发布，或由管理员后台代指定普通用户新增。
+- 普通用户、订单、聊天、求购、置换、举报、纠纷、通知、公告等演示业务数据默认清空。
 - 收藏、留言、订单、聊天、求购、置换初始化为空，用户操作后会真实写入对应业务表。
 - 本轮新增表 `purchases`、`exchanges` 已通过 `backend/sql/03_add_purchases_exchanges.sql` 在本地数据库创建完成。
 - 支付默认关闭真实收款；配置真实支付宝或微信商户参数后才会发起真实下单。
@@ -861,7 +861,7 @@ PATCH /api/swap-requests/{requestId}/cancel
   "data": {
     "totalUsers": 0,
     "todayNewUsers": 0,
-    "onSaleItems": 20,
+    "onSaleItems": 0,
     "todayAmount": 0.00,
     "activeUsers": 0
   }
@@ -873,6 +873,7 @@ PATCH /api/swap-requests/{requestId}/cancel
 ```http
 GET /api/admin/users
 GET /api/admin/items
+POST /api/admin/items
 GET /api/admin/categories
 GET /api/admin/orders
 GET /api/admin/disputes
@@ -883,7 +884,7 @@ GET /api/admin/notices
 
 说明：
 
-- 商品管理返回当前数据库商品。
+- 商品管理返回当前数据库商品；`POST /api/admin/items` 可由管理员为指定普通用户新增商品。
 - 分类管理返回 6 个分类。
 - 订单管理返回真实订单；初始化为空，创建订单后同步展示。
 - 用户、纠纷、举报、公告等清空后返回空数据或空分页。
@@ -895,6 +896,7 @@ GET /api/admin/notices
 ```http
 PATCH /api/admin/users/{userId}/disable
 PATCH /api/admin/users/{userId}/enable
+POST /api/admin/items
 PATCH /api/admin/items/{itemId}/remove
 PATCH /api/admin/items/{itemId}/off-shelf
 PATCH /api/admin/items/{itemId}/on-shelf
@@ -916,6 +918,7 @@ DELETE /api/admin/notices/{noticeId}
 - 后台商品下架真实更新 `items.status = 'REMOVED'`。
 - 后台商品重新上架真实更新 `items.status = 'ON_SALE'`。
 - 后台商品删除真实软删除 `items.deleted = 1`。
+- 后台新增商品需要传 `sellerId`，后续买家咨询会按该商品 `seller_id` 与真实卖家建聊。
 - 用户禁用、分类管理、举报/纠纷处理、公告管理等仍有部分占位。
 
 ## 服务层拆分
@@ -927,7 +930,7 @@ DELETE /api/admin/notices/{noticeId}
 - `AuthService`：注册和登录。
 - `JwtService`：JWT 签发与校验。
 - `UserService`：用户中心相关查询。
-- `ItemService`：分类、商品筛选分页、商品发布、收藏、留言、上下架、软删除、图片 URL。
+- `ItemService`：分类、商品筛选分页、用户发布、后台代指定卖家新增商品、收藏、留言、上下架、软删除、图片 URL。
 - `TradeWorkflowService`：订单、聊天。
 - `BazaarService`：求购、置换和匹配推荐。
 - `AdminService`：后台统计、举报、纠纷、设置、公告。

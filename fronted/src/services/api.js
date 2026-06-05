@@ -110,6 +110,7 @@ export const adminApi = {
   disableUser: (userId) => api.patch(`/admin/users/${userId}/disable`),
   enableUser: (userId) => api.patch(`/admin/users/${userId}/enable`),
   items: (params) => api.get('/admin/items', { params }),
+  createItem: (data) => api.post('/admin/items', data),
   offShelfItem: (itemId, data) => api.patch(`/admin/items/${itemId}/off-shelf`, data),
   onShelfItem: (itemId, data) => api.patch(`/admin/items/${itemId}/on-shelf`, data),
   removeItem: (itemId, data) => api.patch(`/admin/items/${itemId}/off-shelf`, data),

@@ -1,17 +1,36 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { campuses, categories } from '../../data/mock'
+import { campuses, categories, conditions } from '../../data/mock'
 import { adminApi } from '../../services/api'
 import { normalizeItemPage } from '../../services/normalizers'
 
 const selectedRows = ref([])
 const products = ref([])
+const users = ref([])
 const loading = ref(false)
+const creating = ref(false)
+const createDialog = ref(false)
 const filters = reactive({
   category: '',
   campus: '',
   date: '',
+})
+const createForm = reactive({
+  sellerId: '',
+  title: '',
+  description: '',
+  price: 0,
+  originalPrice: 0,
+  condition: '',
+  category: '',
+  campus: '',
+  dormitory: '',
+  tradePlace: '',
+  tradeModes: ['面交'],
+  status: '上架',
+  swapSupported: false,
+  imageUrl: '',
 })
 
 const filteredProducts = computed(() =>
@@ -39,6 +58,16 @@ async function loadItems() {
     ElMessage.error(error.message || '商品列表加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadUsers() {
+  try {
+    const response = await adminApi.users({ page: 1, pageSize: 100 })
+    users.value = response.data?.list || []
+  } catch (error) {
+    users.value = []
+    console.error(error)
   }
 }
 
@@ -87,6 +116,82 @@ function auditItem(row) {
   ElMessage.success(`商品「${row.title}」已通过审核`)
 }
 
+function openCreateDialog() {
+  if (!users.value.length) {
+    ElMessage.warning('请先注册普通用户，再为该用户新增商品')
+    loadUsers()
+    return
+  }
+  createDialog.value = true
+}
+
+function resetCreateForm() {
+  Object.assign(createForm, {
+    sellerId: '',
+    title: '',
+    description: '',
+    price: 0,
+    originalPrice: 0,
+    condition: '',
+    category: '',
+    campus: '',
+    dormitory: '',
+    tradePlace: '',
+    tradeModes: ['面交'],
+    status: '上架',
+    swapSupported: false,
+    imageUrl: '',
+  })
+}
+
+function validateCreateForm() {
+  if (!createForm.sellerId) return '请选择卖家账号'
+  if (!createForm.title.trim()) return '请填写商品标题'
+  if (!createForm.description.trim()) return '请填写商品描述'
+  if (!createForm.price && createForm.price !== 0) return '请填写售价'
+  if (!createForm.condition) return '请选择成色'
+  if (!createForm.category) return '请选择分类'
+  if (!createForm.campus) return '请选择校区'
+  if (!createForm.tradeModes.length) return '至少选择一种交易模式'
+  return ''
+}
+
+async function createItem() {
+  const error = validateCreateForm()
+  if (error) {
+    ElMessage.warning(error)
+    return
+  }
+
+  creating.value = true
+  try {
+    await adminApi.createItem({
+      sellerId: createForm.sellerId,
+      title: createForm.title.trim(),
+      description: createForm.description.trim(),
+      price: createForm.price,
+      originalPrice: createForm.originalPrice,
+      condition: createForm.condition,
+      category: createForm.category,
+      campus: createForm.campus,
+      dormitory: createForm.dormitory.trim(),
+      tradePlace: createForm.tradePlace.trim(),
+      tradeModes: createForm.tradeModes,
+      status: createForm.status,
+      swapSupported: createForm.swapSupported,
+      imageUrl: createForm.imageUrl.trim(),
+    })
+    ElMessage.success('商品已新增')
+    createDialog.value = false
+    resetCreateForm()
+    loadItems()
+  } catch (error) {
+    ElMessage.error(error.message || '新增商品失败')
+  } finally {
+    creating.value = false
+  }
+}
+
 function statusType(status) {
   if (status === 'ON_SALE' || status === '上架') return 'success'
   if (status === 'REMOVED' || status === '违规') return 'danger'
@@ -105,7 +210,10 @@ function statusText(status) {
   return map[status] || status || '未知'
 }
 
-onMounted(loadItems)
+onMounted(() => {
+  loadItems()
+  loadUsers()
+})
 </script>
 
 <template>
@@ -137,7 +245,10 @@ onMounted(loadItems)
       <template #header>
         <div class="admin-card-header">
           <strong>商品列表</strong>
-          <el-button type="danger" @click="batchRemove">批量下架违规商品</el-button>
+          <div>
+            <el-button type="primary" @click="openCreateDialog">新增商品</el-button>
+            <el-button type="danger" @click="batchRemove">批量下架违规商品</el-button>
+          </div>
         </div>
       </template>
 
@@ -167,5 +278,77 @@ onMounted(loadItems)
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog v-model="createDialog" title="后台新增商品" width="720">
+      <el-form label-position="top">
+        <div class="two-column-form">
+          <el-form-item label="卖家账号">
+            <el-select v-model="createForm.sellerId" filterable placeholder="选择普通用户卖家">
+              <el-option
+                v-for="user in users"
+                :key="user.userId"
+                :label="`${user.nickname || user.studentNo}（ID: ${user.userId}）`"
+                :value="user.userId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="发布状态">
+            <el-radio-group v-model="createForm.status">
+              <el-radio-button label="上架" />
+              <el-radio-button label="草稿" />
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="商品标题">
+            <el-input v-model="createForm.title" maxlength="40" show-word-limit />
+          </el-form-item>
+          <el-form-item label="售价">
+            <el-input-number v-model="createForm.price" :min="0" :precision="2" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="原价">
+            <el-input-number v-model="createForm.originalPrice" :min="0" :precision="2" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="成色">
+            <el-select v-model="createForm.condition" placeholder="选择成色">
+              <el-option v-for="condition in conditions" :key="condition" :label="condition" :value="condition" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="分类">
+            <el-select v-model="createForm.category" placeholder="选择分类">
+              <el-option v-for="category in categories" :key="category" :label="category" :value="category" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="校区">
+            <el-select v-model="createForm.campus" placeholder="选择校区">
+              <el-option v-for="campus in campuses" :key="campus" :label="campus" :value="campus" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="宿舍楼 / 教学楼">
+            <el-input v-model="createForm.dormitory" />
+          </el-form-item>
+          <el-form-item label="交易地点">
+            <el-input v-model="createForm.tradePlace" />
+          </el-form-item>
+          <el-form-item label="交易模式">
+            <el-checkbox-group v-model="createForm.tradeModes">
+              <el-checkbox label="面交" />
+              <el-checkbox label="线上担保" />
+            </el-checkbox-group>
+          </el-form-item>
+          <el-form-item label="支持置换">
+            <el-switch v-model="createForm.swapSupported" />
+          </el-form-item>
+        </div>
+        <el-form-item label="商品描述">
+          <el-input v-model="createForm.description" type="textarea" :rows="4" />
+        </el-form-item>
+        <el-form-item label="封面图片 URL">
+          <el-input v-model="createForm.imageUrl" placeholder="可选；不填则使用默认图片" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createDialog = false">取消</el-button>
+        <el-button type="primary" :loading="creating" @click="createItem">保存商品</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>

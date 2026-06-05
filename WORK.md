@@ -6,7 +6,7 @@
 
 ### 数据与登录
 
-- 商品基础数据已扩展到 20 条。
+- 商品种子数据已删除，初始化后商品默认 0 条，后续由注册用户发布，或由管理员后台代指定普通用户新增。
 - 默认普通用户为 0 个，注册后才写入数据库。
 - 默认管理员保留 1 个：`admin/admin123456`。
 - 注册接口真实写入 `users` 和 `user_privacy`。
@@ -305,7 +305,7 @@ PENDING/ACCEPTED/PAYING/PAID -> CANCELLED
 说明：
 
 - 买家点击商品详情的“立即咨询”会创建或获取该商品会话。
-- 会话按 `item_id + buyer_id + seller_id` 唯一。
+- 会话按 `item_id + buyer_id + seller_id` 唯一，`seller_id` 来自商品表，确保账号 B 咨询账号 A 商品时准确和账号 A 聊天。
 - 发送消息会更新会话 `last_message` 和 `last_message_at`。
 - 文本里包含“私下转账、押金、先付款、脱离平台”等词时，后端会标记 `filtered=1`。
 
@@ -557,6 +557,7 @@ PATCH /api/swap-requests/{requestId}/cancel
   - 管理端商品下架/删除调用真实接口。
 - `fronted/src/views/admin/AdminItemsView.vue`
   - 后台商品列表从真实后台接口读取。
+  - 后台商品管理支持管理员为指定普通用户新增商品。
   - 下架、批量下架、删除后刷新真实列表。
 - `fronted/src/views/front/BazaarView.vue`
   - 求购列表从 `/api/purchases` 读取。
@@ -576,7 +577,7 @@ PATCH /api/swap-requests/{requestId}/cancel
 
 - 商品下架、上架、软删除真实写库。
 - 卖家只能操作自己的商品。
-- 管理员后台商品下架/删除真实写库。
+- 管理员后台商品新增、下架、删除真实写库。
 - `purchases`、`exchanges` 新表。
 - `03_add_purchases_exchanges.sql` 增量脚本。
 - 求购/置换真实接口和匹配推荐规则。
