@@ -1,61 +1,116 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { orders } from '../../data/mock'
+import { orderApi } from '../../services/api'
+import { normalizeOrder } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const activeStatus = ref('待面交')
-const reviewDialog = ref(false)
-const rating = ref(5)
-const reviewText = ref('')
-const currentOrder = ref(null)
+const activeStatus = ref('ALL')
+const orders = ref([])
+const loading = ref(false)
 
-const statuses = ['待预订', '待面交', '待发货', '待收货', '已完成', '已取消']
+const statuses = [
+  { label: '全部', value: 'ALL' },
+  { label: '待接单', value: 'PENDING' },
+  { label: '待支付', value: 'ACCEPTED' },
+  { label: '支付中', value: 'PAYING' },
+  { label: '已支付', value: 'PAID' },
+  { label: '已完成', value: 'COMPLETED' },
+  { label: '已取消', value: 'CANCELLED' },
+]
 
-const visibleOrders = computed(() => {
-  const list = orders.filter((order) => order.status === activeStatus.value)
-  return list.length ? list : orders.slice(0, 1).map((order) => ({ ...order, status: activeStatus.value }))
-})
+const visibleOrders = computed(() =>
+  activeStatus.value === 'ALL'
+    ? orders.value
+    : orders.value.filter((order) => order.status === activeStatus.value),
+)
 
-function openRefund(order) {
-  ElMessageBox.prompt(`请填写订单 ${order.id} 的退款原因。`, '退款申请', {
-    confirmButtonText: '提交申请',
-    cancelButtonText: '取消',
-    inputPlaceholder: '例如：卖家无法按约定时间面交',
-  }).then(({ value }) => {
-    if (!value?.trim()) {
-      ElMessage.warning('退款原因不能为空')
+watch(
+  () => authStore.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) fetchOrders()
+  },
+  { immediate: true },
+)
+
+async function fetchOrders() {
+  loading.value = true
+  try {
+    const response = await orderApi.list({ page: 1, pageSize: 100 })
+    const list = response.data?.list || []
+    orders.value = list.map(normalizeOrder)
+  } catch (error) {
+    orders.value = []
+    ElMessage.error(error.message || '订单加载失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function acceptOrder(order) {
+  try {
+    await orderApi.accept(order.id)
+    ElMessage.success('已接单')
+    fetchOrders()
+  } catch (error) {
+    ElMessage.error(error.message || '接单失败')
+  }
+}
+
+async function cancelOrder(order) {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写取消原因', '取消订单', {
+      confirmButtonText: '确认取消',
+      cancelButtonText: '返回',
+      inputPlaceholder: '例如：时间无法协调',
+    })
+    await orderApi.cancel(order.id, { reason: value || '用户取消' })
+    ElMessage.success('订单已取消')
+    fetchOrders()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.message || '取消失败')
+  }
+}
+
+async function completeOrder(order) {
+  try {
+    await orderApi.complete(order.id)
+    ElMessage.success('订单已完成')
+    fetchOrders()
+  } catch (error) {
+    ElMessage.error(error.message || '完成失败')
+  }
+}
+
+async function payOrder(order, provider) {
+  try {
+    const response = await orderApi.pay(order.id, { provider })
+    const payment = response.data
+    if (payment.paymentUrl) {
+      window.location.href = payment.paymentUrl
       return
     }
-    ElMessage.success('退款申请已提交')
-  }).catch(() => {})
-}
-
-function openReview(order) {
-  currentOrder.value = order
-  reviewDialog.value = true
-}
-
-function submitReview() {
-  if (!reviewText.value.trim()) {
-    ElMessage.warning('请填写评价内容')
-    return
+    if (payment.qrUrl) {
+      ElMessageBox.alert(payment.qrUrl, `${provider} 支付二维码链接`, {
+        confirmButtonText: '知道了',
+      })
+      return
+    }
+    ElMessage.success('支付单已创建')
+    fetchOrders()
+  } catch (error) {
+    ElMessage.error(error.message || '支付创建失败')
   }
-  ElMessage.success('评价已提交')
-  reviewDialog.value = false
-  reviewText.value = ''
 }
 
 function viewDetail(order) {
   ElMessageBox.alert(
-    `交易模式：${order.mode}\n交易口令：${order.code}\n商品：${order.product.title}`,
-    `订单 ${order.id}`,
-    {
-      confirmButtonText: '知道了',
-    },
+    `订单号：${order.orderNo}\n状态：${order.status}\n交易口令：${order.tradeCode || '-'}\n商品：${order.product.title}`,
+    `订单 ${order.orderNo}`,
+    { confirmButtonText: '知道了' },
   )
 }
 </script>
@@ -64,7 +119,7 @@ function viewDetail(order) {
   <main class="page-wrap orders-page">
     <el-card v-if="!authStore.isLoggedIn" class="auth-required-card" shadow="never">
       <h1>还没登录</h1>
-      <p>登录或注册后可以查看订单、申请退款和完成互评。</p>
+      <p>登录或注册后可以查看订单、支付和完成交易。</p>
       <div class="hero-actions">
         <el-button type="primary" size="large" @click="router.push('/login')">前往登录</el-button>
         <el-button size="large" @click="router.push('/register')">前往注册</el-button>
@@ -72,58 +127,56 @@ function viewDetail(order) {
     </el-card>
 
     <template v-else>
-    <div class="page-title">
-      <p class="section-kicker">订单管理</p>
-      <h1>我的交易订单</h1>
-    </div>
+      <div class="page-title">
+        <p class="section-kicker">订单管理</p>
+        <h1>我的交易订单</h1>
+      </div>
 
-    <el-tabs v-model="activeStatus" class="order-tabs">
-      <el-tab-pane v-for="status in statuses" :key="status" :label="status" :name="status">
-        <div class="order-list">
-          <el-card v-for="order in visibleOrders" :key="`${order.id}-${status}`" class="order-card" shadow="hover">
-            <div class="order-head">
-              <span>订单号：{{ order.id }}</span>
-              <el-tag type="warning">{{ status }}</el-tag>
-            </div>
-            <div class="order-body">
-              <el-image :src="order.product.image" fit="cover" />
-              <div class="order-info">
-                <h3>{{ order.product.title }}</h3>
-                <p>{{ order.mode }} · {{ order.product.campus }} · {{ order.product.dorm }}</p>
-                <strong>￥{{ order.amount }}</strong>
+      <el-tabs v-model="activeStatus" class="order-tabs">
+        <el-tab-pane v-for="status in statuses" :key="status.value" :label="status.label" :name="status.value">
+          <div class="order-list" v-loading="loading">
+            <el-card v-for="order in visibleOrders" :key="order.id" class="order-card" shadow="hover">
+              <div class="order-head">
+                <span>订单号：{{ order.orderNo }}</span>
+                <el-tag type="warning">{{ order.status }}</el-tag>
               </div>
-              <div class="trade-code">
-                <span>交易口令</span>
-                <strong>{{ order.code }}</strong>
-                <div class="qr-box">QR</div>
+              <div class="order-body">
+                <el-image :src="order.product.image" fit="cover" />
+                <div class="order-info">
+                  <h3>{{ order.product.title }}</h3>
+                  <p>{{ order.tradeMode }} · {{ order.createdAt }}</p>
+                  <strong>￥{{ order.amount }}</strong>
+                </div>
+                <div class="trade-code">
+                  <span>交易口令</span>
+                  <strong>{{ order.tradeCode || '-' }}</strong>
+                  <div class="qr-box">PAY</div>
+                </div>
+                <div class="order-actions">
+                  <el-button @click="viewDetail(order)">查看详情</el-button>
+                  <el-button v-if="order.status === 'PENDING'" type="primary" @click="acceptOrder(order)">接单</el-button>
+                  <el-dropdown v-if="['PENDING', 'ACCEPTED', 'PAYING'].includes(order.status)" @command="payOrder(order, $event)">
+                    <el-button type="success">去支付</el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="ALIPAY">支付宝</el-dropdown-item>
+                        <el-dropdown-item command="WECHAT">微信支付</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                  <el-button v-if="['ACCEPTED', 'PAID'].includes(order.status)" type="primary" @click="completeOrder(order)">
+                    完成交易
+                  </el-button>
+                  <el-button v-if="!['COMPLETED', 'CANCELLED'].includes(order.status)" @click="cancelOrder(order)">
+                    取消
+                  </el-button>
+                </div>
               </div>
-              <div class="order-actions">
-                <el-button @click="openRefund(order)">退款申请</el-button>
-                <el-button v-if="status === '已完成'" type="primary" @click="openReview(order)">
-                  去互评
-                </el-button>
-                <el-button v-else type="primary" @click="viewDetail(order)">查看详情</el-button>
-              </div>
-            </div>
-          </el-card>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
-
-    <el-dialog v-model="reviewDialog" :title="currentOrder ? `交易互评 - ${currentOrder.id}` : '交易互评'" width="480">
-      <el-form label-position="top">
-        <el-form-item label="星级评价">
-          <el-rate v-model="rating" />
-        </el-form-item>
-        <el-form-item label="文字评价">
-          <el-input v-model="reviewText" type="textarea" :rows="4" placeholder="写下你的交易体验" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="reviewDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitReview">提交评价</el-button>
-      </template>
-    </el-dialog>
+            </el-card>
+            <el-empty v-if="!loading && visibleOrders.length === 0" description="暂无订单" />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </template>
   </main>
 </template>

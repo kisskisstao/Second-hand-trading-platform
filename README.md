@@ -1,317 +1,215 @@
 # 校园二手交易平台
 
-基于 Vue3 + Element Plus + Spring Boot 的校园二手交易平台原型项目，包含用户前台、管理员后台、统一 API 客户端、Spring Boot MVC 三层接口骨架和数据库设计文档。
+一个校园二手交易平台项目，包含 Vue 前端、Spring Boot 后端和 MySQL 初始化脚本。
 
-当前状态：前端页面和交互已完成静态原型；后端已切换为 Spring Boot MVC + JDBC，数据库使用 MySQL `second_hand_trade`；建表脚本和初始化数据脚本已提供并已验证可执行；前端演示数据、数据库种子数据、后台管理演示数据已按同一批商品/订单/求购/置换/举报/纠纷/公告数据同步。
+## 当前状态
+
+- 普通用户：默认 0 个，注册后才写入数据库。
+- 管理员：默认 1 个，账号 `admin`，密码 `admin123456`。
+- 商品数据：20 条，前台商品列表和后台商品管理同步展示。
+- 商品列表：从首页点击进入 `/items`，筛选放在列表页，点击“确认筛选”后刷新结果。
+- 商品分页：列表页使用 Element Plus 分页组件，每页 10 条；后端 `/api/items` 支持 `page` 和 `pageSize`。
+- 接口真实化：商品列表筛选、发布商品、我的发布、收藏/取消收藏、留言、订单、聊天、求购、置换已接数据库。
+- 商品管理：卖家可真实下架、重新上架、软删除自己的商品；管理员后台下架和删除也已真实写库。
+- 求购置换：新增 `purchases`、`exchanges` 表，支持发布、列表和匹配推荐。
+- 支付：已接入支付宝和微信支付的配置入口与下单流程；默认关闭真实支付，避免开发环境误收款。
+- 认证：登录已使用 JWT，受保护接口通过统一认证拦截器校验。
+- 异常：后端统一返回 `ApiResponse` 错误结构。
+- 清空数据：订单、聊天、求购、置换、举报、纠纷、通知、公告等演示业务数据默认清空；收藏、留言、订单、聊天、求购、置换会随真实操作写入。
+- 服务状态：本次没有启动前后端常驻服务。
 
 ## 技术栈
 
-前端：
+- 前端：Vue 3、Vite、Element Plus、Pinia、Vue Router、Axios、ECharts
+- 后端：Java 17、Spring Boot、Spring MVC、JdbcTemplate、MyBatis-Plus
+- 数据库：MySQL 8
 
-- Vue 3
-- Vue Router
-- Pinia
-- Element Plus
-- ECharts
-- Axios
-- Vite
-
-后端：
-
-- Java 17
-- Spring Boot 4
-- Spring Web MVC
-- Maven Wrapper
-
-数据库设计：
-
-- MySQL 8.x
-
-## 项目结构
+## 目录结构
 
 ```text
-Second-hand trading platform
-├─ API.md                 # 接口文档
-├─ DATABASE.md            # 数据库表设计
-├─ README.md              # 项目说明
-├─ backend                # Spring Boot 后端
-│  └─ src/main/java/com/example/Second_hand/trading/platform
-│     ├─ controller       # Controller 层，负责 REST API
-│     ├─ service          # Service 层，当前通过 JDBC 读取数据库
-│     ├─ dto              # DTO/统一响应结构
-│     ├─ config           # CORS 等配置
-│     └─ SecondHandTradingPlatformApplication.java
-│  ├─ sql                 # 建表和初始化数据脚本
-│  └─ scripts             # 数据库初始化执行脚本
-└─ fronted                # Vue3 前端
-   └─ src
-      ├─ assets           # 全局样式和静态资源
-      ├─ components
-      │  ├─ admin         # 管理端通用组件
-      │  └─ product       # 商品展示组件
-      ├─ data             # 前端 mock 数据
-      ├─ layouts          # 页面布局，例如管理员后台布局
-      ├─ router           # 路由配置
-      ├─ services         # API 请求封装
-      ├─ stores           # Pinia 状态管理
-      └─ views
-         ├─ admin         # 管理员后台页面
-         └─ front         # 用户前台页面
+backend/                 Spring Boot 后端
+backend/sql/             建表和初始化数据
+backend/sql/03_add_purchases_exchanges.sql  求购和置换新表增量脚本
+backend/scripts/         数据库初始化脚本
+fronted/                 Vue 前端
+fronted/src/data/        前端展示数据
+API.md                   接口说明
+DATABASE.md              数据库设计说明
+WORK.md                  工作记录与后续建议
 ```
 
-## 启动方式
+## 初始化数据库
 
-### 1. 初始化数据库
-
-数据库连接配置：
-
-```text
-数据库：second_hand_trade
-账号：root
-密码：root
-```
-
-配置文件：
-
-```text
-backend/src/main/resources/application.yml
-```
-
-执行建表和初始化数据：
-
-```bash
+```powershell
 cd backend
 .\scripts\init-database.ps1
 ```
 
-该脚本会依次执行：
+脚本会执行：
 
 ```text
 backend/sql/01_create_tables.sql
 backend/sql/02_seed_data.sql
 ```
 
-说明：
+初始化后建议检查：
 
-- `users` 普通用户表不插入任何用户账号。
-- `admin_users` 只保留管理员账号 `admin/admin123456`。
-- 其余业务表插入约 10 条初始化数据。
-- 脚本可重复执行。
+```sql
+SELECT COUNT(*) FROM users;
+SELECT COUNT(*) FROM admin_users;
+SELECT COUNT(*) FROM items;
+SELECT COUNT(*) FROM orders;
+SELECT COUNT(*) FROM chats;
+SELECT COUNT(*) FROM payments;
+SELECT COUNT(*) FROM purchases;
+SELECT COUNT(*) FROM exchanges;
+```
 
-### 2. 启动后端
+预期结果：普通用户 0，管理员 1，商品 20，订单 0，聊天 0，支付单 0，求购 0，置换 0。
 
-```bash
+如果已有数据库不想重建，只创建本轮新增表：
+
+```powershell
+mysql -uroot -proot --default-character-set=utf8mb4 --binary-mode < backend/sql/03_add_purchases_exchanges.sql
+```
+
+本轮已执行该增量脚本，当前 `purchases` 和 `exchanges` 表均已创建，数据量为 0。
+
+## 启动项目
+
+启动后端：
+
+```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-后端默认地址：
+后端地址：
 
 ```text
 http://127.0.0.1:8080
 ```
 
-健康检查：
+启动前端：
 
-```text
-http://127.0.0.1:8080/api/health
-```
-
-### 3. 启动前端
-
-```bash
+```powershell
 cd fronted
 npm install
 npm run dev
 ```
 
-前端默认地址：
+前端地址：
 
 ```text
-http://127.0.0.1:5173/
+http://127.0.0.1:5173
 ```
 
-Vite 已配置代理：
+## 登录说明
 
-```text
-/api -> http://127.0.0.1:8080
-```
+普通用户：
 
-## 登录入口
+- 数据库默认没有普通用户。
+- 先在前端注册，再使用注册的学号或邮箱和密码登录。
+- 未登录时不保留也不显示“小张同学”等固定实例用户。
+- 登录后个人中心展示后端返回的真实用户信息。
 
-用户前台：
-
-```text
-http://127.0.0.1:5173/
-```
-
-管理员后台：
-
-```text
-http://127.0.0.1:5173/admin
-```
-
-管理员演示账号：
+管理员：
 
 ```text
 账号：admin
 密码：admin123456
+入口：http://127.0.0.1:5173/admin
 ```
 
-## 已实现页面
+## JWT 与权限
 
-用户前台：
+登录成功后后端返回 `accessToken`，前端保存到 `localStorage`，后续请求通过请求头携带：
 
-- 首页
-- 登录/注册页
-- 商品发布页
-- 商品详情页
-- 个人中心
-- IM 聊天页
-- 求购广场
-- 以物换物专区
-- 毕业季专题页
-- 订单管理页
-- 搜索结果页
-- 帮助页
-
-管理员后台：
-
-- 首页数据大盘
-- 用户管理
-- 商品管理
-- 分类管理
-- 订单与纠纷管理
-- 举报审核管理
-- 系统配置
-- 公告管理
-
-## 后端 MVC 说明
-
-当前后端采用 Spring Boot MVC 三层结构：
-
-- `controller`：接收 HTTP 请求，返回统一 `ApiResponse`
-- `service`：业务逻辑层，当前 `TradeDataService` 通过 JDBC 读取 MySQL 数据
-- `dto`：统一响应、分页响应等数据结构
-- `config`：跨域等基础配置
-
-当前后端已连接 MySQL，并通过 `TradeDataService` 使用 `JdbcTemplate` 读取数据库数据。后续如果继续完善业务，可以在现有结构上新增：
-
-```text
-entity
-repository
-service.impl
+```http
+Authorization: Bearer <jwt>
 ```
 
-并逐步将 `JdbcTemplate` 查询替换为更完整的 Repository/ORM 实现。
+公开接口：
 
-## 前端结构说明
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/admin/login`
+- `GET /api/health`
+- `GET /api/categories`
+- `GET /api/items`
+- `GET /api/items/{itemId}`
+- `GET /api/items/{itemId}/comments`
+- `GET /api/purchases`
+- `GET /api/purchases/{purchaseId}/matches`
+- `GET /api/exchanges`
+- `GET /api/exchanges/{exchangeId}/matches`
 
-前端按职责目录组织：
+普通用户接口需要 `USER` JWT，后台接口需要 `ADMIN` JWT。未登录返回 401，权限不匹配返回 403。
 
-- 页面统一放在 `views`
-- 管理端页面放 `views/admin`
-- 前台页面放 `views/front`
-- 接口请求统一放 `services/api.js`
-- 状态管理统一放 `stores`
-- 商品组件放 `components/product`
-- 后台组件放 `components/admin`
-- mock 数据放 `data`
+## 主要页面
 
-## 接口文档
+- 首页：展示推荐商品和搜索入口，点击进入商品列表。
+- 商品列表：路径 `/items`，筛选在列表页，点击“确认筛选”后应用条件；每页展示 10 条商品。
+- 商品详情：展示商品信息；收藏、留言、立即咨询、预约商品调用真实接口。
+- 登录/注册：注册写入数据库，登录读取真实用户或管理员信息。
+- 个人中心：只展示当前登录用户信息；我的发布、收藏、订单按当前用户从数据库查询。
+- 订单页：查询真实订单，支持接单、取消、完成和创建支付单。
+- 聊天页：查询真实会话和消息，发送消息写入数据库。
+- 求购/置换广场：求购列表、发布求购、置换列表从真实接口读取；匹配推荐由后端按分类、校区、预算和关键词打分。
+- 管理后台：商品、分类、统计同步当前数据库；商品下架/删除真实写库，订单会随真实交易同步展示，用户、举报、公告等清空后展示空数据。
 
-接口文档见：
+## 后端服务拆分
 
-```text
-API.md
+后端已经从旧的单一 `TradeDataService` 拆分为：
+
+- `AuthService`：注册、普通用户登录、管理员登录。
+- `JwtService`：JWT 签发、解析和校验。
+- `UserService`：当前用户、我的发布、我的收藏、用户评价。
+- `ItemService`：分类、商品筛选分页、商品发布、收藏、留言、图片 URL。
+- `TradeWorkflowService`：订单、聊天等交易流程；订单和聊天已真实写库。
+- `BazaarService`：求购、置换和匹配推荐。
+- `AdminService`：后台看板、举报、纠纷、设置、公告。
+- `HealthService`：健康检查。
+
+## 支付说明
+
+支付配置位于 `backend/src/main/resources/application.yml`：
+
+```yaml
+app:
+  payment:
+    alipay:
+      enabled: false
+    wechat:
+      enabled: false
 ```
 
-前端统一 API 客户端：
+默认 `enabled: false`，所以不会真的向支付宝或微信发起下单，也不会产生真实收款二维码。配置真实商户参数后：
 
-```text
-fronted/src/services/api.js
-```
-
-主要 API 模块：
-
-- `authApi`
-- `userApi`
-- `fileApi`
-- `categoryApi`
-- `itemApi`
-- `orderApi`
-- `wantedApi`
-- `swapApi`
-- `chatApi`
-- `adminApi`
-
-## 数据库设计
-
-数据库表设计和脚本见：
-
-```text
-DATABASE.md
-backend/sql/01_create_tables.sql
-backend/sql/02_seed_data.sql
-backend/scripts/init-database.ps1
-```
-
-主要表：
-
-- 用户与认证：`users`、`admin_users`、`user_privacy`
-- 商品：`categories`、`category_tags`、`items`、`item_images`、`favorites`、`item_comments`
-- 交易：`orders`、`order_status_logs`、`reviews`
-- 沟通：`chats`、`chat_messages`
-- 风控治理：`reports`、`disputes`、`sensitive_words`、`audit_logs`
-- 运营配置：`announcements`、`notifications`、`system_settings`
-- 专区功能：`wanted_posts`、`swap_requests`
-
-## 数据同步说明
-
-为了便于页面原型、后端接口和数据库联调，当前三处数据保持一致：
-
-- 数据库初始化脚本：`backend/sql/02_seed_data.sql`
-- 用户端演示数据：`fronted/src/data/mock.js`
-- 管理端演示数据：`fronted/src/data/adminMock.js`
-
-同步范围：
-
-- 普通用户账号：`users = 0`，不插入真实用户账号
-- 管理员账号：`admin_users = 1`，保留 `admin/admin123456`
-- 分类：6 个一级分类、18 个子标签
-- 商品、订单、求购、置换申请、举报、纠纷、公告、敏感词：各 10 条左右
-- 后台商品、订单、分类、置换演示数据从用户端 mock 派生，避免两份前端数据不一致
+- 支付宝会生成 `alipay.trade.page.pay` 跳转 URL。
+- 微信会调用 API v3 Native 下单并返回 `code_url` 二维码链接。
+- 数据库只记录订单、支付单、支付流水号和状态，真正的钱由支付宝或微信支付结算到配置的商户账户。
+- 如果使用平台商户号，钱先进入平台商户结算账户，再由平台分账或线下结算给卖家。
+- 如果要让钱直接进卖家账户，需要每个卖家绑定自己的商户或收款身份，并补直连或分账流程。
 
 ## 验证命令
 
-后端：
+后端测试：
 
-```bash
+```powershell
 cd backend
 .\mvnw.cmd test
 ```
 
-前端：
+前端构建：
 
-```bash
+```powershell
 cd fronted
 npm run build
 ```
 
-当前验证结果：
+本次验证结果：
 
-- 后端测试通过
-- 前端构建通过
-- 数据库初始化脚本已执行成功
-- `users` 表为 0 条，符合“不写用户账号”要求
-- `admin_users` 表为 1 条，账号为 `admin`
-- `swap_requests` 表为 10 条，与前端 `swapRequests` 保持一致
-- Vite 构建存在依赖包 pure annotation 和 chunk size warning，不影响运行
-
-## 下一步建议
-
-1. 后端新增登录鉴权、JWT、权限拦截。
-2. 将 `TradeDataService` 中的 SQL 查询拆分到 Repository。
-3. 前端页面逐步从 mock 数据切换到 `services/api.js`。
-4. 添加真实注册、登录、发布商品、订单流转事务。
-5. 补充后台操作审计和更细粒度权限。
+- 后端 `mvn test` 通过。
+- 前端 `npm run build` 通过。
+- 前端构建仍有第三方依赖 pure annotation 和 chunk size warning，不影响运行。

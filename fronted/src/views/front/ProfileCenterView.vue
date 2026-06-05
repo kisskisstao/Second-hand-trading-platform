@@ -1,14 +1,18 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ProductListItem from '../../components/product/ProductListItem.vue'
-import { orders, products } from '../../data/mock'
+import { userApi } from '../../services/api'
+import { normalizeItemPage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const activeMenu = ref('selling')
+const myProducts = ref([])
+const favoriteProducts = ref([])
+const loadingItems = ref(false)
 
 const menuItems = [
   { key: 'selling', label: '我的在售商品' },
@@ -26,6 +30,26 @@ const privacy = ref({
 })
 
 const title = computed(() => menuItems.find((item) => item.key === activeMenu.value)?.label)
+const currentUser = computed(() => authStore.user || {})
+const displayName = computed(() => currentUser.value.nickname || currentUser.value.realName || currentUser.value.account)
+const avatarText = computed(() => displayName.value?.slice(0, 1) || '用')
+const profileLine = computed(() => {
+  const parts = [
+    currentUser.value.realName ? `实名：${currentUser.value.realName}` : '',
+    currentUser.value.department || '',
+    currentUser.value.enrollmentYear ? `${currentUser.value.enrollmentYear} 级` : '',
+  ].filter(Boolean)
+
+  return parts.length > 0 ? parts.join(' · ') : '暂无实名资料'
+})
+
+watch(
+  () => authStore.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) fetchUserItems()
+  },
+  { immediate: true },
+)
 
 function goRegister() {
   router.push('/register')
@@ -33,6 +57,26 @@ function goRegister() {
 
 function savePrivacy() {
   ElMessage.success('隐私设置已保存')
+}
+
+async function fetchUserItems() {
+  if (!authStore.isLoggedIn) return
+
+  loadingItems.value = true
+  try {
+    const [itemsResponse, favoritesResponse] = await Promise.all([
+      userApi.getMyItems({ page: 1, pageSize: 100 }),
+      userApi.getMyFavorites({ page: 1, pageSize: 100 }),
+    ])
+    myProducts.value = normalizeItemPage(itemsResponse).list
+    favoriteProducts.value = normalizeItemPage(favoritesResponse).list
+  } catch (error) {
+    myProducts.value = []
+    favoriteProducts.value = []
+    console.error(error)
+  } finally {
+    loadingItems.value = false
+  }
 }
 </script>
 
@@ -48,104 +92,98 @@ function savePrivacy() {
     </el-card>
 
     <template v-else>
-    <el-card class="profile-hero" shadow="never">
-      <div class="profile-user">
-        <el-avatar :size="82">{{ authStore.user.nickname.slice(0, 1) }}</el-avatar>
-        <div>
-          <h1>{{ authStore.user.nickname }}</h1>
-          <p>实名：林同学 · 数学与应用数学 · 2024 级</p>
-          <el-rate :model-value="4.8" disabled show-score score-template="信用分 96" />
+      <el-card class="profile-hero" shadow="never">
+        <div class="profile-user">
+          <el-avatar :size="82">{{ avatarText }}</el-avatar>
+          <div>
+            <h1>{{ displayName }}</h1>
+            <p>{{ profileLine }}</p>
+            <el-rate :model-value="5" disabled show-score :score-template="`信用分 ${currentUser.creditScore || 100}`" />
+          </div>
         </div>
-      </div>
-      <div class="profile-stats">
-        <div><strong>8</strong><span>在售商品</span></div>
-        <div><strong>21</strong><span>已售商品</span></div>
-        <div><strong>36</strong><span>收藏商品</span></div>
-      </div>
-    </el-card>
-
-    <section class="profile-layout">
-      <el-card shadow="never" class="profile-menu-card">
-        <el-menu v-model="activeMenu" :default-active="activeMenu" @select="activeMenu = $event">
-          <el-menu-item v-for="item in menuItems" :key="item.key" :index="item.key">
-            {{ item.label }}
-          </el-menu-item>
-        </el-menu>
+        <div class="profile-stats">
+          <div><strong>{{ myProducts.length }}</strong><span>在售商品</span></div>
+          <div><strong>0</strong><span>已售商品</span></div>
+          <div><strong>{{ favoriteProducts.length }}</strong><span>收藏商品</span></div>
+        </div>
       </el-card>
 
-      <el-card shadow="never" class="profile-content">
-        <template #header>
-          <div class="card-header">
-            <span>{{ title }}</span>
-            <el-tag v-if="activeMenu === 'selling'" type="warning">上架 / 下架 / 已出 / 草稿</el-tag>
-          </div>
-        </template>
+      <section class="profile-layout">
+        <el-card shadow="never" class="profile-menu-card">
+          <el-menu v-model="activeMenu" :default-active="activeMenu" @select="activeMenu = $event">
+            <el-menu-item v-for="item in menuItems" :key="item.key" :index="item.key">
+              {{ item.label }}
+            </el-menu-item>
+          </el-menu>
+        </el-card>
 
-        <div v-if="activeMenu === 'selling'" class="status-board">
-          <el-tabs>
-            <el-tab-pane label="上架中">
-              <ProductListItem v-for="product in products.slice(0, 3)" :key="product.id" :product="product" />
-            </el-tab-pane>
-            <el-tab-pane label="已下架">
-              <el-empty description="暂无已下架商品" />
-            </el-tab-pane>
-            <el-tab-pane label="已出">
-              <ProductListItem :product="products[5]" />
-            </el-tab-pane>
-            <el-tab-pane label="草稿">
-              <el-empty description="暂无草稿" />
-            </el-tab-pane>
-          </el-tabs>
-        </div>
-
-        <div v-else-if="activeMenu === 'orders'" class="order-mini-list">
-          <div v-for="order in orders" :key="order.id" class="mini-order">
-            <el-image :src="order.product.image" fit="cover" />
-            <div>
-              <strong>{{ order.product.title }}</strong>
-              <p>{{ order.id }} · {{ order.status }} · {{ order.mode }}</p>
+        <el-card shadow="never" class="profile-content" v-loading="loadingItems">
+          <template #header>
+            <div class="card-header">
+              <span>{{ title }}</span>
+              <el-tag v-if="activeMenu === 'selling'" type="warning">上架 / 下架 / 已出 / 草稿</el-tag>
             </div>
-            <span>￥{{ order.amount }}</span>
+          </template>
+
+          <div v-if="activeMenu === 'selling'" class="status-board">
+            <el-tabs>
+              <el-tab-pane label="上架中">
+                <div v-if="myProducts.length > 0" class="product-list">
+                  <ProductListItem v-for="product in myProducts" :key="product.id" :product="product" />
+                </div>
+                <el-empty v-else description="暂无在售商品" />
+              </el-tab-pane>
+              <el-tab-pane label="已下架">
+                <el-empty description="暂无已下架商品" />
+              </el-tab-pane>
+              <el-tab-pane label="已出">
+                <el-empty description="暂无已出商品" />
+              </el-tab-pane>
+              <el-tab-pane label="草稿">
+                <el-empty description="暂无草稿" />
+              </el-tab-pane>
+            </el-tabs>
           </div>
-        </div>
 
-        <div v-else-if="activeMenu === 'favorites'" class="product-list">
-          <ProductListItem v-for="product in products.slice(2, 6)" :key="product.id" :product="product" />
-        </div>
+          <div v-else-if="activeMenu === 'orders'" class="order-mini-list">
+            <el-empty description="暂无订单" />
+          </div>
 
-        <div v-else-if="activeMenu === 'reviews'" class="review-list">
-          <el-rate :model-value="5" disabled />
-          <p>交易准时，商品和描述一致，沟通很顺畅。</p>
-          <el-rate :model-value="4" disabled />
-          <p>线下面交地点清楚，整体体验不错。</p>
-        </div>
+          <div v-else-if="activeMenu === 'favorites'" class="product-list">
+            <ProductListItem v-for="product in favoriteProducts" :key="product.id" :product="product" />
+            <el-empty v-if="favoriteProducts.length === 0" description="暂无收藏商品" />
+          </div>
 
-        <div v-else-if="activeMenu === 'wanted'">
-          <el-empty description="暂未发布求购" />
-        </div>
+          <div v-else-if="activeMenu === 'reviews'" class="review-list">
+            <el-empty description="暂无评价" />
+          </div>
 
-        <div v-else-if="activeMenu === 'swap'" class="product-list">
-          <ProductListItem v-for="product in products.filter((item) => item.swap)" :key="product.id" :product="product" />
-        </div>
+          <div v-else-if="activeMenu === 'wanted'">
+            <el-empty description="暂未发布求购" />
+          </div>
 
-        <div v-else class="privacy-list">
-          <div class="privacy-row">
-            <div>
-              <strong>手机号公开</strong>
-              <p>开启后，交易双方可在订单详情查看手机号。</p>
+          <div v-else-if="activeMenu === 'swap'" class="product-list">
+            <el-empty description="暂无置换商品" />
+          </div>
+
+          <div v-else class="privacy-list">
+            <div class="privacy-row">
+              <div>
+                <strong>手机号公开</strong>
+                <p>开启后，交易双方可在订单详情查看手机号。</p>
+              </div>
+              <el-switch v-model="privacy.phone" @change="savePrivacy" />
             </div>
-            <el-switch v-model="privacy.phone" @change="savePrivacy" />
-          </div>
-          <div class="privacy-row">
-            <div>
-              <strong>QQ / 微信公开</strong>
-              <p>开启后，交易双方可在咨询页查看联系方式。</p>
+            <div class="privacy-row">
+              <div>
+                <strong>QQ / 微信公开</strong>
+                <p>开启后，交易双方可在咨询页查看联系方式。</p>
+              </div>
+              <el-switch v-model="privacy.wechat" @change="savePrivacy" />
             </div>
-            <el-switch v-model="privacy.wechat" @change="savePrivacy" />
           </div>
-        </div>
-      </el-card>
-    </section>
+        </el-card>
+      </section>
     </template>
   </main>
 </template>

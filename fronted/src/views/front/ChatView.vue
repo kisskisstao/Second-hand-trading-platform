@@ -1,24 +1,77 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Goods, Picture, Promotion } from '@element-plus/icons-vue'
-import { chatMessages, contacts } from '../../data/mock'
+import { chatApi } from '../../services/api'
+import { normalizeChat, normalizeMessage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const activeId = ref(contacts[0].id)
+const activeId = ref(route.query.chatId ? Number(route.query.chatId) : null)
 const input = ref('')
-const localMessages = ref([...chatMessages])
+const contacts = ref([])
+const localMessages = ref([])
+const loading = ref(false)
 
-const activeContact = computed(() => contacts.find((contact) => contact.id === activeId.value) || contacts[0])
+const currentUserId = computed(() => authStore.user?.userId)
+const activeContact = computed(() => contacts.value.find((contact) => contact.id === activeId.value) || null)
 const sensitiveHint = computed(() => {
   const words = ['私下转账', '押金', '先付款', '脱离平台']
   return words.find((word) => input.value.includes(word))
 })
 
-function sendText() {
+watch(
+  () => authStore.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) fetchChats()
+  },
+  { immediate: true },
+)
+
+watch(activeId, (chatId) => {
+  if (chatId) {
+    router.replace({ path: '/chats', query: { chatId } })
+    fetchMessages(chatId)
+  } else {
+    localMessages.value = []
+  }
+})
+
+async function fetchChats() {
+  loading.value = true
+  try {
+    const response = await chatApi.list()
+    contacts.value = Array.isArray(response.data)
+      ? response.data.map((chat) => normalizeChat(chat, currentUserId.value))
+      : []
+    if (!activeId.value && contacts.value.length > 0) {
+      activeId.value = contacts.value[0].id
+    } else if (activeId.value) {
+      fetchMessages(activeId.value)
+    }
+  } catch (error) {
+    contacts.value = []
+    ElMessage.error(error.message || '聊天加载失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function fetchMessages(chatId) {
+  try {
+    const response = await chatApi.messages(chatId)
+    const list = response.data?.list || []
+    localMessages.value = list.map((message) => normalizeMessage(message, currentUserId.value))
+  } catch (error) {
+    localMessages.value = []
+    ElMessage.error(error.message || '消息加载失败')
+  }
+}
+
+async function sendText() {
   if (!input.value.trim()) {
     ElMessage.warning('请输入消息内容')
     return
@@ -29,28 +82,38 @@ function sendText() {
     return
   }
 
-  localMessages.value.push({
-    id: Date.now(),
-    from: 'me',
-    text: input.value.trim(),
-    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-  })
-  input.value = ''
-  ElMessage.success('消息已发送')
+  try {
+    await chatApi.sendMessage(activeId.value, {
+      messageType: 'TEXT',
+      content: input.value.trim(),
+    })
+    input.value = ''
+    await fetchMessages(activeId.value)
+  } catch (error) {
+    ElMessage.error(error.message || '消息发送失败')
+  }
 }
 
 function sendImage() {
-  ElMessage.success('图片已加入待发送队列')
+  ElMessage.info('图片消息接口已支持 imageUrl，前端上传存储接入后即可发送')
 }
 
-function sendProductCard() {
-  localMessages.value.push({
-    id: Date.now(),
-    from: 'me',
-    text: `商品卡片：${activeContact.value.product.title}`,
-    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-  })
-  ElMessage.success('商品卡片已发送')
+async function sendProductCard() {
+  if (!activeContact.value) {
+    ElMessage.info('暂无可发送的商品会话')
+    return
+  }
+
+  try {
+    await chatApi.sendMessage(activeId.value, {
+      messageType: 'ITEM',
+      content: `商品卡片：${activeContact.value.item.title}`,
+      itemId: activeContact.value.item.id,
+    })
+    await fetchMessages(activeId.value)
+  } catch (error) {
+    ElMessage.error(error.message || '商品卡片发送失败')
+  }
 }
 </script>
 
@@ -65,7 +128,7 @@ function sendProductCard() {
       </div>
     </el-card>
 
-    <section v-else class="chat-shell">
+    <section v-else class="chat-shell" v-loading="loading">
       <aside class="chat-contacts">
         <h2>消息</h2>
         <button
@@ -80,25 +143,25 @@ function sendProductCard() {
           </el-badge>
           <span>
             <strong>{{ contact.name }}</strong>
-            <small>{{ contact.role }} · {{ contact.last }}</small>
+            <small>{{ contact.last || '暂无消息' }}</small>
           </span>
         </button>
       </aside>
 
-      <section class="chat-window">
+      <section v-if="activeContact" class="chat-window">
         <header class="chat-header">
           <div>
             <h1>{{ activeContact.name }}</h1>
-            <p>{{ activeContact.product.title }}</p>
+            <p>{{ activeContact.item.title }}</p>
           </div>
-          <el-tag type="warning">{{ activeContact.role }}</el-tag>
+          <el-tag type="warning">平台会话</el-tag>
         </header>
 
         <div class="chat-product-card">
-          <el-image :src="activeContact.product.image" fit="cover" />
+          <el-image :src="activeContact.item.image" fit="cover" />
           <div>
-            <strong>{{ activeContact.product.title }}</strong>
-            <p>￥{{ activeContact.product.price }} · {{ activeContact.product.campus }}</p>
+            <strong>{{ activeContact.item.title }}</strong>
+            <p>请在平台内完成沟通和交易</p>
           </div>
           <el-button type="primary" plain :icon="Goods" @click="sendProductCard">发送商品卡</el-button>
         </div>
@@ -138,6 +201,9 @@ function sendProductCard() {
             <el-button type="primary" size="large" :icon="Promotion" @click="sendText">发送</el-button>
           </div>
         </footer>
+      </section>
+      <section v-else class="chat-window chat-empty-window">
+        <el-empty description="暂无聊天消息" />
       </section>
     </section>
   </main>

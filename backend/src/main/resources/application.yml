@@ -24,3 +24,25 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 50MB
+
+app:
+  jwt:
+    secret: second-hand-trading-platform-local-dev-secret-change-me
+    expire-minutes: 120
+  payment:
+    return-url: http://127.0.0.1:5173/orders
+    alipay:
+      enabled: false
+      gateway: https://openapi.alipay.com/gateway.do
+      app-id:
+      private-key:
+      notify-url: http://127.0.0.1:8080/api/payments/alipay/notify
+      return-url: http://127.0.0.1:5173/orders
+    wechat:
+      enabled: false
+      gateway: https://api.mch.weixin.qq.com
+      app-id:
+      mch-id:
+      merchant-serial-no:
+      private-key:
+      notify-url: http://127.0.0.1:8080/api/payments/wechat/notify

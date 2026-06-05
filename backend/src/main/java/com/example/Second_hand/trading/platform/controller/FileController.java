@@ -9,21 +9,21 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
-import com.example.Second_hand.trading.platform.service.TradeDataService;
+import com.example.Second_hand.trading.platform.service.ItemService;
 
 @RestController
 @RequestMapping("/api/files")
 public class FileController {
-	private final TradeDataService tradeDataService;
+	private final ItemService itemService;
 
-	public FileController(TradeDataService tradeDataService) {
-		this.tradeDataService = tradeDataService;
+	public FileController(ItemService itemService) {
+		this.itemService = itemService;
 	}
 
 	@PostMapping("/images")
 	public ApiResponse<Map<String, Object>> uploadImage(@RequestParam("file") MultipartFile file) {
 		return ApiResponse.success(Map.of(
 				"filename", file.getOriginalFilename() == null ? "image.png" : file.getOriginalFilename(),
-				"url", tradeDataService.imageUrl()));
+				"url", itemService.imageUrl()));
 	}
 }

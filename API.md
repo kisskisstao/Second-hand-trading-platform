@@ -1,22 +1,18 @@
-# 校园二手交易平台接口文档
+# API 文档
 
-版本：v0.1  
-基础路径：`/api`  
-数据格式：`application/json; charset=utf-8`
+基础路径：`/api`
 
-## 1. 通用约定
+## 当前数据状态
 
-### 1.1 认证方式
+- 普通用户默认 0 个，注册后才写入数据库。
+- 管理员默认 1 个：`admin/admin123456`。
+- 商品基础数据 20 条。
+- 订单、聊天、求购、置换、举报、纠纷、通知、公告等演示业务数据默认清空。
+- 收藏、留言、订单、聊天、求购、置换初始化为空，用户操作后会真实写入对应业务表。
+- 本轮新增表 `purchases`、`exchanges` 已通过 `backend/sql/03_add_purchases_exchanges.sql` 在本地数据库创建完成。
+- 支付默认关闭真实收款；配置真实支付宝或微信商户参数后才会发起真实下单。
 
-除注册、登录、公开商品列表、商品详情外，其余接口默认需要登录。
-
-请求头：
-
-```http
-Authorization: Bearer <accessToken>
-```
-
-### 1.2 通用响应结构
+## 通用响应
 
 成功响应：
 
@@ -25,16 +21,6 @@ Authorization: Bearer <accessToken>
   "code": 0,
   "message": "success",
   "data": {}
-}
-```
-
-失败响应：
-
-```json
-{
-  "code": 40001,
-  "message": "参数错误",
-  "data": null
 }
 ```
 
@@ -48,66 +34,105 @@ Authorization: Bearer <accessToken>
     "list": [],
     "page": 1,
     "pageSize": 10,
-    "total": 0
+    "total": 20
   }
 }
 ```
 
-### 1.3 通用错误码
+错误响应：
 
-| code | 含义 |
-| --- | --- |
-| 0 | 成功 |
-| 40001 | 参数错误 |
-| 40100 | 未登录或登录已过期 |
-| 40300 | 无权限 |
-| 40400 | 资源不存在 |
-| 40900 | 状态冲突，例如商品已售出 |
-| 50000 | 服务器错误 |
+```json
+{
+  "code": 40100,
+  "message": "登录已过期，请重新登录",
+  "data": null
+}
+```
 
-### 1.4 枚举
+错误码约定：
 
-商品状态 `itemStatus`：
+| HTTP 状态 | code | 说明 |
+| --- | ---: | --- |
+| 400 | 40001 | 参数错误、请求体解析失败、参数类型错误 |
+| 401 | 40100 | 未登录或 JWT 无效 |
+| 403 | 40300 | 权限不足 |
+| 404 | 40400 | 资源不存在 |
+| 409 | 40900 | 数据冲突，例如学号或邮箱重复 |
+| 500 | 50000 | 服务器内部错误 |
 
-| 值 | 含义 |
-| --- | --- |
-| `ON_SALE` | 在售 |
-| `RESERVED` | 已预约 |
-| `SOLD` | 已售出 |
-| `REMOVED` | 已下架 |
+## JWT 认证
 
-商品成色 `condition`：
+请求头：
 
-| 值 | 含义 |
-| --- | --- |
-| `NEW` | 全新 |
-| `LIKE_NEW` | 几乎全新 |
-| `GOOD` | 轻微使用痕迹 |
-| `FAIR` | 明显使用痕迹 |
+```http
+Authorization: Bearer <jwt>
+```
 
-订单状态 `orderStatus`：
+JWT 实现：
 
-| 值 | 含义 |
-| --- | --- |
-| `PENDING` | 待卖家确认 |
-| `ACCEPTED` | 卖家已确认 |
-| `CANCELED` | 已取消 |
-| `COMPLETED` | 已完成 |
+- 算法：HMAC-SHA256
+- Header：`{"alg":"HS256","typ":"JWT"}`
+- Payload 字段：
+  - `type`：`USER` 或 `ADMIN`
+  - `id`：普通用户 ID 或管理员 ID
+  - `account`：学号、邮箱或管理员账号
+  - `role`：`USER` 或管理员角色
+  - `iat`：签发时间
+  - `exp`：过期时间
 
-## 2. 用户与认证
+配置：
 
-### 2.1 用户注册
+```yaml
+app:
+  jwt:
+    secret: second-hand-trading-platform-local-dev-secret-change-me
+    expire-minutes: 120
+```
+
+公开接口：
+
+```http
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/admin/login
+GET /api/health
+GET /api/categories
+GET /api/items
+GET /api/items/{itemId}
+GET /api/items/{itemId}/comments
+GET /api/purchases
+GET /api/purchases/{purchaseId}/matches
+GET /api/exchanges
+GET /api/exchanges/{exchangeId}/matches
+```
+
+认证规则：
+
+- 除公开接口外，其他 `/api/**` 请求都需要 JWT。
+- `/api/admin/**` 需要 `ADMIN` JWT。
+- 非后台受保护接口需要 `USER` JWT。
+- 未携带 token 或 token 无效返回 401。
+- token 类型不匹配返回 403。
+
+## 认证接口
+
+### 用户注册
 
 `POST /api/auth/register`
 
-请求体：
+请求：
 
 ```json
 {
-  "studentNo": "20240001",
-  "nickname": "张三",
-  "phone": "13800000000",
-  "password": "123456"
+  "studentNo": "20260001",
+  "realName": "注册用户",
+  "nickname": "注册用户",
+  "department": "计算机科学与技术",
+  "enrollmentYear": "2026",
+  "email": "student@example.edu.cn",
+  "password": "12345678",
+  "phoneVisible": false,
+  "wechatVisible": false
 }
 ```
 
@@ -118,25 +143,34 @@ Authorization: Bearer <accessToken>
   "code": 0,
   "message": "success",
   "data": {
-    "userId": 1,
-    "studentNo": "20240001",
-    "nickname": "张三"
+    "user": {
+      "userId": 1,
+      "studentNo": "20260001",
+      "nickname": "注册用户",
+      "realName": "注册用户",
+      "email": "student@example.edu.cn",
+      "department": "计算机科学与技术",
+      "enrollmentYear": 2026,
+      "creditScore": 100
+    }
   }
 }
 ```
 
-### 2.2 用户登录
+### 用户登录
 
 `POST /api/auth/login`
 
-请求体：
+请求：
 
 ```json
 {
-  "studentNo": "20240001",
-  "password": "123456"
+  "account": "20260001",
+  "password": "12345678"
 }
 ```
+
+`account` 支持学号或邮箱。
 
 响应：
 
@@ -145,949 +179,23 @@ Authorization: Bearer <accessToken>
   "code": 0,
   "message": "success",
   "data": {
-    "accessToken": "jwt-token",
+    "accessToken": "<jwt>",
     "user": {
       "userId": 1,
-      "studentNo": "20240001",
-      "nickname": "张三",
-      "avatarUrl": ""
+      "studentNo": "20260001",
+      "nickname": "注册用户",
+      "realName": "注册用户",
+      "creditScore": 100
     }
   }
 }
 ```
 
-### 2.3 获取当前用户信息
-
-`GET /api/users/me`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "userId": 1,
-    "studentNo": "20240001",
-    "nickname": "张三",
-    "phone": "13800000000",
-    "avatarUrl": "",
-    "campus": "主校区",
-    "createdAt": "2026-06-04T16:00:00"
-  }
-}
-```
-
-### 2.4 修改当前用户信息
-
-`PUT /api/users/me`
-
-请求体：
-
-```json
-{
-  "nickname": "张三",
-  "phone": "13800000000",
-  "avatarUrl": "https://example.com/avatar.png",
-  "campus": "主校区"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-## 3. 文件上传
-
-### 3.1 上传图片
-
-`POST /api/files/images`
-
-请求类型：`multipart/form-data`
-
-字段：
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `file` | file | 是 | 图片文件 |
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "url": "https://example.com/uploads/item-1.png"
-  }
-}
-```
-
-## 4. 商品分类
-
-### 4.1 获取分类列表
-
-`GET /api/categories`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": [
-    {
-      "categoryId": 1,
-      "name": "教材书籍"
-    },
-    {
-      "categoryId": 2,
-      "name": "数码设备"
-    }
-  ]
-}
-```
-
-## 5. 商品
-
-### 5.1 发布商品
-
-`POST /api/items`
-
-请求体：
-
-```json
-{
-  "title": "高等数学教材",
-  "description": "教材九成新，少量笔记",
-  "categoryId": 1,
-  "price": 25.00,
-  "originalPrice": 49.00,
-  "condition": "GOOD",
-  "campus": "主校区",
-  "tradePlace": "图书馆门口",
-  "imageUrls": [
-    "https://example.com/uploads/item-1.png"
-  ]
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "itemId": 1001
-  }
-}
-```
-
-### 5.2 获取商品列表
-
-`GET /api/items`
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `keyword` | string | 否 | 关键词，匹配标题和描述 |
-| `categoryId` | number | 否 | 分类 ID |
-| `minPrice` | number | 否 | 最低价 |
-| `maxPrice` | number | 否 | 最高价 |
-| `campus` | string | 否 | 校区 |
-| `itemStatus` | string | 否 | 商品状态，默认只查 `ON_SALE` |
-| `sort` | string | 否 | `latest` 最新，`price_asc` 价格升序，`price_desc` 价格降序 |
-| `page` | number | 否 | 页码，默认 1 |
-| `pageSize` | number | 否 | 每页条数，默认 10 |
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "list": [
-      {
-        "itemId": 1001,
-        "title": "高等数学教材",
-        "price": 25.00,
-        "coverUrl": "https://example.com/uploads/item-1.png",
-        "condition": "GOOD",
-        "itemStatus": "ON_SALE",
-        "campus": "主校区",
-        "seller": {
-          "userId": 1,
-          "nickname": "张三",
-          "avatarUrl": ""
-        },
-        "createdAt": "2026-06-04T16:00:00"
-      }
-    ],
-    "page": 1,
-    "pageSize": 10,
-    "total": 1
-  }
-}
-```
-
-### 5.3 获取商品详情
-
-`GET /api/items/{itemId}`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "itemId": 1001,
-    "title": "高等数学教材",
-    "description": "教材九成新，少量笔记",
-    "category": {
-      "categoryId": 1,
-      "name": "教材书籍"
-    },
-    "price": 25.00,
-    "originalPrice": 49.00,
-    "condition": "GOOD",
-    "itemStatus": "ON_SALE",
-    "campus": "主校区",
-    "tradePlace": "图书馆门口",
-    "imageUrls": [
-      "https://example.com/uploads/item-1.png"
-    ],
-    "seller": {
-      "userId": 1,
-      "nickname": "张三",
-      "avatarUrl": "",
-      "campus": "主校区"
-    },
-    "favoriteCount": 3,
-    "viewCount": 28,
-    "createdAt": "2026-06-04T16:00:00",
-    "updatedAt": "2026-06-04T16:10:00"
-  }
-}
-```
-
-### 5.4 修改商品
-
-`PUT /api/items/{itemId}`
-
-说明：仅商品发布者可修改，已售出商品不可修改。
-
-请求体：
-
-```json
-{
-  "title": "高等数学教材",
-  "description": "教材九成新，少量笔记",
-  "categoryId": 1,
-  "price": 20.00,
-  "originalPrice": 49.00,
-  "condition": "GOOD",
-  "campus": "主校区",
-  "tradePlace": "图书馆门口",
-  "imageUrls": [
-    "https://example.com/uploads/item-1.png"
-  ]
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 5.5 下架商品
-
-`PATCH /api/items/{itemId}/remove`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 5.6 获取我的发布
-
-`GET /api/users/me/items`
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `itemStatus` | string | 否 | 商品状态 |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：同商品列表。
-
-## 6. 收藏
-
-### 6.1 收藏商品
-
-`POST /api/items/{itemId}/favorite`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 6.2 取消收藏
-
-`DELETE /api/items/{itemId}/favorite`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 6.3 获取我的收藏
-
-`GET /api/users/me/favorites`
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：同商品列表。
-
-## 7. 订单与交易
-
-### 7.1 创建订单
-
-`POST /api/orders`
-
-说明：买家对商品发起购买请求。创建成功后商品状态可变为 `RESERVED`。
-
-请求体：
-
-```json
-{
-  "itemId": 1001,
-  "message": "我想今晚 7 点在图书馆门口交易"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "orderId": 5001,
-    "orderStatus": "PENDING"
-  }
-}
-```
-
-### 7.2 获取我的订单
-
-`GET /api/orders`
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `role` | string | 否 | `buyer` 我买到的，`seller` 我卖出的 |
-| `orderStatus` | string | 否 | 订单状态 |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "list": [
-      {
-        "orderId": 5001,
-        "orderStatus": "PENDING",
-        "item": {
-          "itemId": 1001,
-          "title": "高等数学教材",
-          "price": 25.00,
-          "coverUrl": "https://example.com/uploads/item-1.png"
-        },
-        "buyer": {
-          "userId": 2,
-          "nickname": "李四"
-        },
-        "seller": {
-          "userId": 1,
-          "nickname": "张三"
-        },
-        "createdAt": "2026-06-04T16:30:00"
-      }
-    ],
-    "page": 1,
-    "pageSize": 10,
-    "total": 1
-  }
-}
-```
-
-### 7.3 获取订单详情
-
-`GET /api/orders/{orderId}`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "orderId": 5001,
-    "orderStatus": "PENDING",
-    "message": "我想今晚 7 点在图书馆门口交易",
-    "item": {
-      "itemId": 1001,
-      "title": "高等数学教材",
-      "price": 25.00,
-      "coverUrl": "https://example.com/uploads/item-1.png",
-      "tradePlace": "图书馆门口"
-    },
-    "buyer": {
-      "userId": 2,
-      "nickname": "李四",
-      "phone": "13900000000"
-    },
-    "seller": {
-      "userId": 1,
-      "nickname": "张三",
-      "phone": "13800000000"
-    },
-    "createdAt": "2026-06-04T16:30:00",
-    "updatedAt": "2026-06-04T16:30:00"
-  }
-}
-```
-
-### 7.4 卖家确认订单
-
-`PATCH /api/orders/{orderId}/accept`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 7.5 取消订单
-
-`PATCH /api/orders/{orderId}/cancel`
-
-请求体：
-
-```json
-{
-  "reason": "时间不合适"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 7.6 完成订单
-
-`PATCH /api/orders/{orderId}/complete`
-
-说明：买家或卖家确认线下交易已完成后调用。
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-## 8. 留言与沟通
-
-### 8.1 商品留言列表
-
-`GET /api/items/{itemId}/comments`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": [
-    {
-      "commentId": 9001,
-      "content": "可以便宜一点吗？",
-      "user": {
-        "userId": 2,
-        "nickname": "李四",
-        "avatarUrl": ""
-      },
-      "createdAt": "2026-06-04T16:40:00"
-    }
-  ]
-}
-```
-
-### 8.2 发表商品留言
-
-`POST /api/items/{itemId}/comments`
-
-请求体：
-
-```json
-{
-  "content": "可以便宜一点吗？"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "commentId": 9001
-  }
-}
-```
-
-### 8.3 获取会话列表
-
-`GET /api/chats`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": [
-    {
-      "chatId": 3001,
-      "targetUser": {
-        "userId": 2,
-        "nickname": "李四",
-        "avatarUrl": ""
-      },
-      "item": {
-        "itemId": 1001,
-        "title": "高等数学教材"
-      },
-      "lastMessage": "今晚 7 点可以吗？",
-      "unreadCount": 1,
-      "updatedAt": "2026-06-04T17:00:00"
-    }
-  ]
-}
-```
-
-### 8.4 获取会话消息
-
-`GET /api/chats/{chatId}/messages`
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "list": [
-      {
-        "messageId": 7001,
-        "senderId": 1,
-        "content": "今晚 7 点可以吗？",
-        "createdAt": "2026-06-04T17:00:00"
-      }
-    ],
-    "page": 1,
-    "pageSize": 20,
-    "total": 1
-  }
-}
-```
-
-### 8.5 发送消息
-
-`POST /api/chats/{chatId}/messages`
-
-请求体：
-
-```json
-{
-  "content": "今晚 7 点可以吗？"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "messageId": 7001
-  }
-}
-```
-
-## 9. 评价
-
-### 9.1 创建评价
-
-`POST /api/orders/{orderId}/reviews`
-
-说明：订单完成后可评价交易对象。
-
-请求体：
-
-```json
-{
-  "rating": 5,
-  "content": "交易顺利，教材保存很好"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "reviewId": 8001
-  }
-}
-```
-
-### 9.2 获取用户评价
-
-`GET /api/users/{userId}/reviews`
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "list": [
-      {
-        "reviewId": 8001,
-        "rating": 5,
-        "content": "交易顺利，教材保存很好",
-        "reviewer": {
-          "userId": 2,
-          "nickname": "李四"
-        },
-        "createdAt": "2026-06-04T18:00:00"
-      }
-    ],
-    "page": 1,
-    "pageSize": 10,
-    "total": 1
-  }
-}
-```
-
-## 9.5 求购与置换
-
-### 9.5.1 获取求购列表
-
-`GET /api/wanted-posts`
-
-返回当前数据库 `wanted_posts` 中的求购帖子，分页结构同通用分页。
-
-响应字段：
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| postId | number | 求购 ID |
-| userId | number | 发布人 |
-| title | string | 求购物品 |
-| description | string | 需求描述 |
-| categoryId | number | 分类 ID |
-| categoryName | string | 分类名称 |
-| campus | string | 需求校区 |
-| budgetMin | number | 最低预算 |
-| budgetMax | number | 最高预算 |
-| status | string | `OPEN` / `CLOSED` |
-
-### 9.5.2 发布求购
-
-`POST /api/wanted-posts`
-
-请求体：
-
-```json
-{
-  "title": "求购二手自行车",
-  "description": "校内通勤用",
-  "categoryId": 5,
-  "campus": "校本部",
-  "budgetMin": 200,
-  "budgetMax": 350
-}
-```
-
-### 9.5.3 关闭求购
-
-`PATCH /api/wanted-posts/{postId}/close`
-
-### 9.5.4 获取置换申请列表
-
-`GET /api/swap-requests`
-
-返回当前数据库 `swap_requests` 中的置换申请，分页结构同通用分页。
-
-响应字段：
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| swapRequestId | number | 置换申请 ID |
-| requestNo | string | 申请编号 |
-| requesterId | number | 发起人 |
-| targetItemId | number | 目标商品 ID |
-| targetItemTitle | string | 目标商品名称 |
-| offeredItemId | number | 置换商品 ID |
-| offeredItemTitle | string | 置换商品名称 |
-| ownerId | number | 目标商品卖家 |
-| status | string | `PENDING` / `ACCEPTED` / `REJECTED` / `CANCELLED` |
-| message | string | 置换说明 |
-
-### 9.5.5 创建置换申请
-
-`POST /api/swap-requests`
-
-请求体：
-
-```json
-{
-  "targetItemId": 5,
-  "offeredItemId": 1,
-  "message": "想用高数教材加差价换羽毛球拍套装。"
-}
-```
-
-### 9.5.6 处理置换申请
-
-```http
-PATCH /api/swap-requests/{requestId}/accept
-PATCH /api/swap-requests/{requestId}/reject
-PATCH /api/swap-requests/{requestId}/cancel
-```
-
-## 10. 管理端
-
-### 10.1 获取用户列表
-
-`GET /api/admin/users`
-
-权限：管理员
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `keyword` | string | 否 | 学号、昵称、手机号 |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "list": [
-      {
-        "userId": 1,
-        "studentNo": "20240001",
-        "nickname": "张三",
-        "phone": "13800000000",
-        "enabled": true,
-        "createdAt": "2026-06-04T16:00:00"
-      }
-    ],
-    "page": 1,
-    "pageSize": 10,
-    "total": 1
-  }
-}
-```
-
-### 10.2 禁用用户
-
-`PATCH /api/admin/users/{userId}/disable`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 10.3 恢复用户
-
-`PATCH /api/admin/users/{userId}/enable`
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 10.4 管理端下架商品
-
-`PATCH /api/admin/items/{itemId}/remove`
-
-请求体：
-
-```json
-{
-  "reason": "违规内容"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-## 11. 首期建议实现范围
-
-首期建议先实现以下接口，保证平台主流程可跑通：
-
-| 模块 | 接口 |
-| --- | --- |
-| 认证 | 注册、登录、当前用户信息 |
-| 商品 | 分类列表、发布商品、商品列表、商品详情、修改商品、下架商品、我的发布 |
-| 收藏 | 收藏、取消收藏、我的收藏 |
-| 订单 | 创建订单、我的订单、订单详情、确认订单、取消订单、完成订单 |
-
-消息、评价、管理端可以作为第二阶段实现。
-
-## 12. 当前实现状态
-
-当前后端已经提供 Spring Boot MVC REST API，接口路径、请求方式和统一响应结构可用于前后端联调。数据库使用 MySQL `second_hand_trade`，服务层通过 JDBC 读取初始化数据。
-
-后端目录：
-
-```text
-backend/src/main/java/com/example/Second_hand/trading/platform
-├─ controller
-├─ service
-├─ dto
-└─ config
-```
-
-前端统一 API 客户端：
-
-```text
-fronted/src/services/api.js
-```
-
-前端 API 模块：
-
-| 模块 | 说明 |
-| --- | --- |
-| `authApi` | 注册、登录、管理员登录 |
-| `userApi` | 当前用户、我的发布、我的收藏、评价 |
-| `fileApi` | 图片上传 |
-| `categoryApi` | 分类列表 |
-| `itemApi` | 商品、收藏、留言 |
-| `orderApi` | 订单、取消、完成、评价 |
-| `wantedApi` | 求购发布、求购列表、关闭求购 |
-| `swapApi` | 置换申请、接受、拒绝、取消 |
-| `chatApi` | 会话、消息 |
-| `adminApi` | 后台管理接口 |
-
-## 13. 管理员后台补充接口
-
-### 13.1 管理员登录
+### 管理员登录
 
 `POST /api/auth/admin/login`
 
-请求体：
+请求：
 
 ```json
 {
@@ -1103,264 +211,734 @@ fronted/src/services/api.js
   "code": 0,
   "message": "success",
   "data": {
-    "accessToken": "mock-admin-token",
+    "accessToken": "<jwt>",
     "admin": {
+      "adminId": 1,
       "username": "admin",
-      "role": "ADMIN"
+      "role": "SUPER_ADMIN",
+      "status": "NORMAL"
     }
   }
 }
 ```
 
-### 13.2 数据大盘
+## 健康检查
 
-`GET /api/admin/dashboard`
+`GET /api/health`
 
-响应：
+公开接口。
 
 ```json
 {
   "code": 0,
   "message": "success",
   "data": {
-    "totalUsers": 12486,
-    "todayNewUsers": 128,
-    "onSaleItems": 3672,
-    "todayAmount": 26840,
-    "activeUsers": 2108
+    "status": "UP",
+    "service": "Second-hand-trading-platform",
+    "database": "second_hand_trade",
+    "timestamp": "2026-06-05T04:00:00Z"
   }
 }
 ```
 
-### 13.3 后台商品列表
+## 用户接口
 
-`GET /api/admin/items`
+### 当前用户
 
-查询参数：
+`GET /api/users/me`
 
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `categoryId` | number | 否 | 分类 ID |
-| `campus` | string | 否 | 校区 |
-| `status` | string | 否 | 商品状态 |
-| `startDate` | string | 否 | 发布时间开始 |
-| `endDate` | string | 否 | 发布时间结束 |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：分页商品列表。
-
-### 13.4 删除商品
-
-`DELETE /api/admin/items/{itemId}`
-
-响应：
+需要 `USER` JWT。
 
 ```json
 {
   "code": 0,
   "message": "success",
-  "data": true
-}
-```
-
-### 13.5 后台分类管理
-
-获取分类：
-
-`GET /api/admin/categories`
-
-新增分类：
-
-`POST /api/admin/categories`
-
-请求体：
-
-```json
-{
-  "name": "教材教辅",
-  "tags": ["考研资料", "公共课教材"]
-}
-```
-
-修改分类：
-
-`PUT /api/admin/categories/{categoryId}`
-
-删除分类：
-
-`DELETE /api/admin/categories/{categoryId}`
-
-### 13.6 后台订单列表
-
-`GET /api/admin/orders`
-
-查询参数：
-
-| 参数 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `orderStatus` | string | 否 | 订单状态 |
-| `tradeMode` | string | 否 | 交易模式 |
-| `startDate` | string | 否 | 开始日期 |
-| `endDate` | string | 否 | 结束日期 |
-| `page` | number | 否 | 页码 |
-| `pageSize` | number | 否 | 每页条数 |
-
-响应：分页订单列表。
-
-### 13.7 纠纷列表
-
-`GET /api/admin/disputes`
-
-响应：分页纠纷列表。
-
-### 13.8 纠纷仲裁
-
-`PATCH /api/admin/disputes/{disputeId}/resolve`
-
-请求体：
-
-```json
-{
-  "result": "REFUND_APPROVED",
-  "remark": "商品与描述不符，同意退款"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 13.9 举报列表
-
-`GET /api/admin/reports`
-
-响应：分页举报列表。
-
-### 13.10 通过举报
-
-`PATCH /api/admin/reports/{reportId}/approve`
-
-请求体：
-
-```json
-{
-  "action": "REMOVE_ITEM_AND_DEDUCT_CREDIT",
-  "remark": "虚假商品，已下架并扣分"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 13.11 驳回举报
-
-`PATCH /api/admin/reports/{reportId}/reject`
-
-请求体：
-
-```json
-{
-  "remark": "证据不足"
-}
-```
-
-响应：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": true
-}
-```
-
-### 13.12 系统配置
-
-获取配置：
-
-`GET /api/admin/settings`
-
-更新配置：
-
-`PUT /api/admin/settings`
-
-请求体：
-
-```json
-{
-  "sensitiveWords": ["私下转账", "押金"],
-  "payment": {
-    "wechatAppId": "wx-campus-demo",
-    "alipayAppId": "alipay-campus-demo",
-    "campusCardMerchant": "CAMPUS-2026"
-  },
-  "tradeRules": {
-    "maxImages": 9,
-    "disputeDays": 3,
-    "creditDeduction": 10
+  "data": {
+    "userId": 1,
+    "studentNo": "20260001",
+    "nickname": "注册用户",
+    "realName": "注册用户",
+    "email": "student@example.edu.cn",
+    "department": "计算机科学与技术",
+    "enrollmentYear": 2026,
+    "creditScore": 100
   }
 }
 ```
 
-### 13.13 公告管理
+未登录时不再返回空对象，统一由认证拦截器返回 401。
 
-公告列表：
+### 修改当前用户
 
-`GET /api/admin/notices`
+`PUT /api/users/me`
 
-新增公告：
-
-`POST /api/admin/notices`
-
-修改公告：
-
-`PUT /api/admin/notices/{noticeId}`
-
-删除公告：
-
-`DELETE /api/admin/notices/{noticeId}`
-
-新增/修改请求体：
+需要 `USER` JWT。当前为成功占位：
 
 ```json
 {
-  "title": "毕业季闲置交易安全提醒",
-  "content": "请优先选择同校区面交，贵重商品现场验机。",
-  "scopeType": "ALL",
-  "campus": "",
-  "popupEnabled": true,
-  "status": "PUBLISHED"
+  "code": 0,
+  "message": "success",
+  "data": true
 }
 ```
 
-## 14. 接口实现边界
+### 我的发布
 
-当前后端接口已连接 MySQL：
+`GET /api/users/me/items`
 
-- 查询类接口从 `second_hand_trade` 读取初始化数据。
-- 普通用户账号未初始化，`users` 表为空。
-- 管理员账号保留 `admin/admin123456`。
-- 登录 token 仍为演示 token，尚未接 JWT。
-- 新增、修改、删除类接口当前以返回成功为主，后续需要补充真实写库逻辑、事务和权限校验。
-- 文件上传接口当前返回数据库文件表中的示例图片 URL，尚未接本地/对象存储。
+需要 `USER` JWT。按 JWT 中的用户 ID 查询 `items.seller_id`，返回当前用户真实发布的商品。
 
-后续完善建议：
+### 我的收藏
 
-- 新增 Entity、Repository、Service 实现。
-- 对订单、商品、举报、纠纷等写操作增加事务。
-- 接入 JWT 登录态和后台权限拦截。
-- 前端页面逐步由 mock 数据切换到 `fronted/src/services/api.js`。
+`GET /api/users/me/favorites`
+
+需要 `USER` JWT。按 JWT 中的用户 ID 查询 `favorites`，并返回收藏的真实商品列表。
+
+### 用户评价
+
+`GET /api/users/{userId}/reviews`
+
+需要 `USER` JWT。当前评价表为空，返回空分页。
+
+## 分类接口
+
+### 分类列表
+
+`GET /api/categories`
+
+公开接口，返回启用中的一级分类。
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": [
+    { "categoryId": 1, "name": "教材教辅" },
+    { "categoryId": 2, "name": "数码3C" },
+    { "categoryId": 3, "name": "生活日用" },
+    { "categoryId": 4, "name": "服饰鞋包" },
+    { "categoryId": 5, "name": "运动户外" },
+    { "categoryId": 6, "name": "其他" }
+  ]
+}
+```
+
+## 商品接口
+
+### 商品列表
+
+`GET /api/items`
+
+公开接口。
+
+查询参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `page` | number | 1 | 页码，从 1 开始 |
+| `pageSize` | number | 10 | 每页条数，后端限制在 1 到 100 |
+| `keyword` | string | - | 匹配商品标题或描述 |
+| `categoryId` | number | - | 分类 ID |
+| `categories` | string | - | 分类名称，多个用英文逗号分隔 |
+| `conditions` | string | - | 成色，多个用英文逗号分隔 |
+| `campus` | string | - | 校区 |
+| `minPrice` | number | - | 最低价 |
+| `maxPrice` | number | - | 最高价 |
+| `sort` | string | latest | `latest`、`price_asc`、`price_desc` |
+
+示例：
+
+```http
+GET /api/items?page=1&pageSize=10&keyword=iPad&campus=东校区&sort=price_asc
+```
+
+响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "list": [
+      {
+        "itemId": 1,
+        "title": "高等数学同济第七版上下册",
+        "description": "教材干净，少量重点标注，适合期末复习。",
+        "category": {
+          "categoryId": 1,
+          "name": "教材教辅"
+        },
+        "price": 28.00,
+        "originalPrice": 68.00,
+        "condition": "LIKE_NEW",
+        "itemStatus": "ON_SALE",
+        "campus": "校本部",
+        "tradePlace": "图书馆北门",
+        "swapSupported": false,
+        "coverUrl": "/images/items/math-book.jpg",
+        "imageUrls": ["/images/items/math-book.jpg"],
+        "seller": {
+          "userId": 1001,
+          "nickname": "用户1001",
+          "avatarUrl": "",
+          "campus": "校本部"
+        },
+        "favoriteCount": 0,
+        "viewCount": 238
+      }
+    ],
+    "page": 1,
+    "pageSize": 10,
+    "total": 20
+  }
+}
+```
+
+当前后端已使用 MyBatis-Plus 动态条件完成筛选、排序和分页；前端列表页已切换为调用真实接口。
+
+### 商品详情
+
+`GET /api/items/{itemId}`
+
+公开接口，返回指定商品详情。商品 ID 不存在时返回统一 404 响应。
+
+### 发布商品
+
+`POST /api/items`
+
+需要 `USER` JWT。真实写入 `items`，并为图片写入 `item_images` 和 `files`。如果前端没有传图片 URL，后端会使用当前已有图片作为默认封面。
+
+请求示例：
+
+```json
+{
+  "title": "高等数学教材九成新",
+  "description": "教材干净，少量标注。",
+  "price": 28,
+  "originalPrice": 68,
+  "condition": "9成新",
+  "category": "教材教辅",
+  "campus": "校本部",
+  "dormitory": "桃李园 3 栋",
+  "tradeModes": ["面交"],
+  "status": "上架",
+  "imageUrls": ["/images/items/math-book.jpg"]
+}
+```
+
+响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "itemId": 21,
+    "title": "高等数学教材九成新",
+    "itemStatus": "ON_SALE"
+  }
+}
+```
+
+### 修改商品
+
+`PUT /api/items/{itemId}`
+
+需要 `USER` JWT。当前返回成功占位。
+
+### 商品上下架和软删除
+
+以下接口需要 `USER` JWT，且只能操作当前登录用户自己发布的商品：
+
+```http
+PATCH /api/items/{itemId}/off-shelf
+PATCH /api/items/{itemId}/on-shelf
+DELETE /api/items/{itemId}
+```
+
+说明：
+
+- `PATCH /off-shelf`：真实更新 `items.status = 'REMOVED'`。
+- `PATCH /on-shelf`：真实更新 `items.status = 'ON_SALE'`。
+- `DELETE /api/items/{itemId}`：软删除商品，真实更新 `items.deleted = 1`，并同步设为 `REMOVED`。
+- 卖家只能操作自己的商品，操作别人的商品返回 403。
+- 已售出商品不能下架或重新上架。
+- 存在 `PENDING`、`ACCEPTED`、`PAYING`、`PAID` 进行中订单的商品不能删除。
+- 兼容旧路径：`PATCH /api/items/{itemId}/remove` 等同于下架。
+
+响应：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": true
+}
+```
+
+## 收藏和评论接口
+
+收藏写操作需要 `USER` JWT：
+
+```http
+POST /api/items/{itemId}/favorite
+DELETE /api/items/{itemId}/favorite
+```
+
+留言列表为公开接口，发表留言需要 `USER` JWT：
+
+```http
+GET /api/items/{itemId}/comments
+POST /api/items/{itemId}/comments
+```
+
+实现状态：
+
+- `POST /favorite` 写入 `favorites`，重复收藏不会重复插入。
+- `DELETE /favorite` 删除 `favorites` 记录，并同步扣减商品收藏数。
+- `GET /comments` 查询 `item_comments`。
+- `POST /comments` 写入 `item_comments`。
+
+## 订单接口
+
+以下接口需要 `USER` JWT：
+
+```http
+GET /api/orders
+GET /api/orders/{orderId}
+POST /api/orders
+PATCH /api/orders/{orderId}/accept
+PATCH /api/orders/{orderId}/cancel
+PATCH /api/orders/{orderId}/complete
+POST /api/orders/{orderId}/reviews
+```
+
+### 创建订单
+
+`POST /api/orders`
+
+请求：
+
+```json
+{
+  "itemId": 1,
+  "tradeMode": "OFFLINE",
+  "message": "今天晚上图书馆门口可以交易"
+}
+```
+
+说明：
+
+- 使用 JWT 中的当前用户作为买家。
+- 卖家不能购买自己发布的商品。
+- 商品必须是 `ON_SALE`。
+- 成功后写入 `orders`，并写入 `order_status_logs`。
+
+### 查询订单
+
+`GET /api/orders`
+
+返回当前登录用户作为买家或卖家参与的订单。
+
+`GET /api/orders/{orderId}`
+
+返回订单详情、状态日志和支付单列表。只有订单参与人可以查看。
+
+### 订单状态操作
+
+```http
+PATCH /api/orders/{orderId}/accept
+PATCH /api/orders/{orderId}/cancel
+PATCH /api/orders/{orderId}/complete
+```
+
+状态流转：
+
+```text
+PENDING -> ACCEPTED -> PAYING -> PAID -> COMPLETED
+PENDING/ACCEPTED/PAYING/PAID -> CANCELLED
+```
+
+说明：
+
+- 只有卖家可以接单。
+- 买家或卖家都可以取消自己的订单，取消后未售出的商品恢复为 `ON_SALE`。
+- 订单完成后商品改为 `SOLD`。
+- 订单评价 `POST /api/orders/{orderId}/reviews` 当前仍是成功占位。
+
+### 创建支付单
+
+`POST /api/orders/{orderId}/pay`
+
+请求：
+
+```json
+{
+  "provider": "ALIPAY"
+}
+```
+
+`provider` 支持：
+
+- `ALIPAY`
+- `WECHAT`
+
+成功后写入 `payments`，订单状态进入 `PAYING`。
+
+## 聊天接口
+
+以下接口需要 `USER` JWT：
+
+```http
+GET /api/chats
+POST /api/chats
+GET /api/chats/{chatId}/messages
+POST /api/chats/{chatId}/messages
+```
+
+### 创建或获取会话
+
+`POST /api/chats`
+
+请求：
+
+```json
+{
+  "itemId": 1
+}
+```
+
+说明：
+
+- 根据 `item_id + buyer_id + seller_id` 创建或获取唯一会话。
+- 卖家不能和自己创建会话。
+- 会话写入 `chats`。
+
+### 会话列表
+
+`GET /api/chats`
+
+返回当前用户作为买家或卖家参与的会话。
+
+### 消息列表
+
+`GET /api/chats/{chatId}/messages`
+
+返回会话消息分页。只有会话参与人可以查看。
+
+### 发送消息
+
+`POST /api/chats/{chatId}/messages`
+
+请求：
+
+```json
+{
+  "messageType": "TEXT",
+  "content": "你好，这个还在吗？",
+  "imageUrl": "",
+  "itemId": null
+}
+```
+
+说明：
+
+- 消息写入 `chat_messages`。
+- 会同步更新 `chats.last_message` 和 `chats.last_message_at`。
+- 内容包含“私下转账、押金、先付款、脱离平台”等词时，后端标记 `filtered=1`。
+
+## 支付接口
+
+### 支付配置
+
+配置位置：`backend/src/main/resources/application.yml`
+
+```yaml
+app:
+  payment:
+    return-url: http://127.0.0.1:5173/orders
+    alipay:
+      enabled: false
+      gateway: https://openapi.alipay.com/gateway.do
+      app-id:
+      private-key:
+      notify-url: http://127.0.0.1:8080/api/payments/alipay/notify
+      return-url: http://127.0.0.1:5173/orders
+    wechat:
+      enabled: false
+      gateway: https://api.mch.weixin.qq.com
+      app-id:
+      mch-id:
+      merchant-serial-no:
+      private-key:
+      notify-url: http://127.0.0.1:8080/api/payments/wechat/notify
+```
+
+默认 `enabled: false`，调用创建支付单时会返回“支付宝支付未配置”或“微信支付未配置”，不会产生真实收款二维码。
+
+### 支付宝回调
+
+`POST /api/payments/alipay/notify`
+
+支付宝异步通知入口。当前会根据 `trade_status` 和 `out_trade_no` 标记支付单为 `PAID`，并同步订单状态。
+
+生产环境必须补支付宝公钥验签，不能直接信任回调参数。
+
+### 微信回调
+
+`POST /api/payments/wechat/notify`
+
+当前接口保留路径，返回：
+
+```json
+{
+  "code": "FAIL",
+  "message": "微信支付回调验签和解密未配置"
+}
+```
+
+生产环境必须补微信支付 API v3 回调验签和资源解密后，才能确认支付成功。
+
+### 扫码支付的钱去哪
+
+- 钱不会进入数据库，数据库只记录订单、支付单、流水号、支付状态和回调信息。
+- 真正资金由支付宝或微信支付清结算。
+- 如果配置的是平台支付宝应用或微信商户号，钱进入平台商户绑定的结算账户。
+- 如果要钱直接进入卖家账户，需要卖家直连商户或分账能力。
+- 平台代收模式下，还需要补资金台账、分账、提现、退款、对账和回调验签。
+
+## 求购与置换接口
+
+### 求购列表
+
+`GET /api/purchases`
+
+公开接口。
+
+查询参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `page` | number | 1 | 页码 |
+| `pageSize` | number | 10 | 每页条数 |
+| `keyword` | string | - | 匹配标题或描述 |
+| `categoryId` | number | - | 分类 ID |
+| `campus` | string | - | 校区 |
+| `status` | string | OPEN | `OPEN`、`CLOSED` |
+
+### 发布求购
+
+`POST /api/purchases`
+
+需要 `USER` JWT。真实写入 `purchases`。
+
+请求：
+
+```json
+{
+  "title": "求购二手自行车",
+  "description": "校内通勤用，车况正常即可。",
+  "categoryId": 5,
+  "campus": "校本部",
+  "budgetMin": 200,
+  "budgetMax": 350
+}
+```
+
+响应会返回求购记录，并附带 `recommendedItems`，由后端按分类、校区、预算、关键词做规则打分推荐。
+
+### 关闭求购
+
+`PATCH /api/purchases/{purchaseId}/close`
+
+需要 `USER` JWT。只能关闭自己发布的求购，真实更新 `purchases.status = 'CLOSED'`。
+
+### 求购匹配推荐
+
+`GET /api/purchases/{purchaseId}/matches`
+
+公开接口。返回匹配商品列表，每条包含：
+
+- `matchScore`：匹配分。
+- `matchReasons`：匹配原因，如分类一致、校区一致、价格在预算内、关键词相似。
+
+### 发布置换
+
+`POST /api/exchanges`
+
+需要 `USER` JWT。真实写入 `exchanges`。
+
+请求：
+
+```json
+{
+  "itemId": 8,
+  "targetItemId": 18,
+  "targetCategoryId": 5,
+  "expectedTitle": "运动护具或羽毛球用品",
+  "description": "可补差价，同校区优先。",
+  "campus": "西校区"
+}
+```
+
+说明：
+
+- `itemId` 必须是当前登录用户自己发布的在售商品。
+- `targetItemId` 可选；如果填写，目标商品必须在售、不是自己的商品，并且支持置换。
+- `targetCategoryId` 和 `expectedTitle` 用于匹配推荐。
+- 成功后返回置换记录，并附带 `recommendedItems`。
+
+### 置换列表
+
+`GET /api/exchanges`
+
+公开接口。
+
+查询参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `page` | number | 1 | 页码 |
+| `pageSize` | number | 10 | 每页条数 |
+| `keyword` | string | - | 匹配期望标题或描述 |
+| `categoryId` | number | - | 目标分类 ID |
+| `campus` | string | - | 校区 |
+| `status` | string | OPEN | `OPEN`、`MATCHED`、`CANCELLED` |
+
+### 置换状态
+
+```http
+PATCH /api/exchanges/{exchangeId}/matched
+PATCH /api/exchanges/{exchangeId}/cancel
+```
+
+需要 `USER` JWT。只能操作自己发布的置换。
+
+### 置换匹配推荐
+
+`GET /api/exchanges/{exchangeId}/matches`
+
+公开接口。返回支持置换的商品推荐，按目标商品、目标分类、校区、关键词打分。
+
+### 兼容旧路径
+
+旧路径仍可用，并转发到新表 `purchases`、`exchanges`：
+
+```http
+GET /api/wanted-posts
+POST /api/wanted-posts
+PATCH /api/wanted-posts/{postId}/close
+
+GET /api/swap-requests
+POST /api/swap-requests
+PATCH /api/swap-requests/{requestId}/accept
+PATCH /api/swap-requests/{requestId}/reject
+PATCH /api/swap-requests/{requestId}/cancel
+```
+
+## 文件接口
+
+### 上传图片
+
+`POST /api/files/images`
+
+需要 `USER` JWT。当前返回 `files` 表第一张图片 URL，尚未接真实上传存储。
+
+## 管理后台接口
+
+后台接口都需要 `ADMIN` JWT。
+
+### 数据大盘
+
+`GET /api/admin/dashboard`
+
+当前默认数据响应：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "totalUsers": 0,
+    "todayNewUsers": 0,
+    "onSaleItems": 20,
+    "todayAmount": 0.00,
+    "activeUsers": 0
+  }
+}
+```
+
+### 后台查询接口
+
+```http
+GET /api/admin/users
+GET /api/admin/items
+GET /api/admin/categories
+GET /api/admin/orders
+GET /api/admin/disputes
+GET /api/admin/reports
+GET /api/admin/settings
+GET /api/admin/notices
+```
+
+说明：
+
+- 商品管理返回当前数据库商品。
+- 分类管理返回 6 个分类。
+- 订单管理返回真实订单；初始化为空，创建订单后同步展示。
+- 用户、纠纷、举报、公告等清空后返回空数据或空分页。
+
+### 后台写操作
+
+以下接口当前保留路径，部分仍是成功占位：
+
+```http
+PATCH /api/admin/users/{userId}/disable
+PATCH /api/admin/users/{userId}/enable
+PATCH /api/admin/items/{itemId}/remove
+PATCH /api/admin/items/{itemId}/off-shelf
+PATCH /api/admin/items/{itemId}/on-shelf
+DELETE /api/admin/items/{itemId}
+POST /api/admin/categories
+PUT /api/admin/categories/{categoryId}
+DELETE /api/admin/categories/{categoryId}
+PATCH /api/admin/disputes/{disputeId}/resolve
+PATCH /api/admin/reports/{reportId}/approve
+PATCH /api/admin/reports/{reportId}/reject
+PUT /api/admin/settings
+POST /api/admin/notices
+PUT /api/admin/notices/{noticeId}
+DELETE /api/admin/notices/{noticeId}
+```
+
+说明：
+
+- 后台商品下架真实更新 `items.status = 'REMOVED'`。
+- 后台商品重新上架真实更新 `items.status = 'ON_SALE'`。
+- 后台商品删除真实软删除 `items.deleted = 1`。
+- 用户禁用、分类管理、举报/纠纷处理、公告管理等仍有部分占位。
+
+## 服务层拆分
+
+当前后端服务层已经拆分：
+
+商品相关核心读写已引入 `mybatis-plus-spring-boot4-starter:3.5.13`，使用 MyBatis-Plus Mapper、动态条件和分页插件；其他后台统计类查询暂时保留 `JdbcTemplate`。
+
+- `AuthService`：注册和登录。
+- `JwtService`：JWT 签发与校验。
+- `UserService`：用户中心相关查询。
+- `ItemService`：分类、商品筛选分页、商品发布、收藏、留言、上下架、软删除、图片 URL。
+- `TradeWorkflowService`：订单、聊天。
+- `BazaarService`：求购、置换和匹配推荐。
+- `AdminService`：后台统计、举报、纠纷、设置、公告。
+- `HealthService`：健康检查。
+
+旧的 `TradeDataService` 已删除。
+
+## 后续建议
+
+1. 支付闭环增强：支付宝回调验签、微信回调验签和解密、退款、分账、提现账户、对账。
+2. 后台分类管理改为真实写库。
+3. 图片上传接入本地存储或对象存储，替换当前 URL 记录方式。
+4. 求购、置换继续补详情页、我的求购/置换、站内消息通知。
+5. JWT 增加 refresh token、黑名单或主动失效机制。

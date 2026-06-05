@@ -162,6 +162,27 @@ CREATE TABLE IF NOT EXISTS order_status_logs (
   INDEX idx_order_status_logs_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  payment_no VARCHAR(64) NOT NULL UNIQUE,
+  order_id BIGINT NOT NULL,
+  order_no VARCHAR(64) NOT NULL,
+  provider VARCHAR(32) NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'INIT',
+  provider_trade_no VARCHAR(128),
+  payment_url VARCHAR(1000),
+  qr_url VARCHAR(1000),
+  request_payload TEXT,
+  response_payload TEXT,
+  paid_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_payments_order_id (order_id),
+  INDEX idx_payments_provider_status (provider, status),
+  INDEX idx_payments_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS reviews (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   order_id BIGINT NOT NULL,
@@ -219,6 +240,26 @@ CREATE TABLE IF NOT EXISTS wanted_posts (
   INDEX idx_wanted_posts_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS purchases (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(100) NOT NULL,
+  description TEXT,
+  category_id BIGINT,
+  campus VARCHAR(64) NOT NULL,
+  budget_min DECIMAL(10,2),
+  budget_max DECIMAL(10,2),
+  status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_purchases_user_id (user_id),
+  INDEX idx_purchases_category_id (category_id),
+  INDEX idx_purchases_campus (campus),
+  INDEX idx_purchases_status (status),
+  INDEX idx_purchases_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS swap_requests (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   request_no VARCHAR(64) NOT NULL UNIQUE,
@@ -234,6 +275,28 @@ CREATE TABLE IF NOT EXISTS swap_requests (
   INDEX idx_swap_requests_requester_id (requester_id),
   INDEX idx_swap_requests_target_item_id (target_item_id),
   INDEX idx_swap_requests_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS exchanges (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  exchange_no VARCHAR(64) NOT NULL UNIQUE,
+  user_id BIGINT NOT NULL,
+  item_id BIGINT NOT NULL,
+  target_item_id BIGINT,
+  target_category_id BIGINT,
+  expected_title VARCHAR(100),
+  description TEXT,
+  campus VARCHAR(64),
+  status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_exchanges_user_id (user_id),
+  INDEX idx_exchanges_item_id (item_id),
+  INDEX idx_exchanges_target_item_id (target_item_id),
+  INDEX idx_exchanges_target_category_id (target_category_id),
+  INDEX idx_exchanges_status (status),
+  INDEX idx_exchanges_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS reports (

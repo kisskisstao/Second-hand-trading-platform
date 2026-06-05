@@ -17,17 +17,28 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => user.value?.role === 'admin')
 
   function login(payload = {}) {
+    const role = payload.role || 'user'
+    const profile = role === 'admin' ? payload.admin || {} : payload.user || {}
+    const account = payload.account || profile.studentNo || profile.username || ''
+
     user.value = {
-      role: payload.role || 'user',
-      nickname: payload.nickname || (payload.role === 'admin' ? '管理员' : '校园用户'),
-      account: payload.account || '',
+      ...profile,
+      role,
+      account,
+      nickname: profile.nickname || profile.realName || profile.username || account,
     }
+
+    if (payload.accessToken) {
+      localStorage.setItem('accessToken', payload.accessToken)
+    }
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
   }
 
   function logout() {
     user.value = null
     localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem('accessToken')
   }
 
   return {

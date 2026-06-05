@@ -1,9 +1,11 @@
 <script setup>
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { authApi } from '../../services/api'
 
 const router = useRouter()
+const submitting = ref(false)
 
 const registerForm = reactive({
   studentNo: '',
@@ -24,7 +26,7 @@ function verifyEmail() {
   ElMessage.success('校园邮箱验证邮件已发送')
 }
 
-function submitRegister() {
+async function submitRegister() {
   const requiredFields = [
     ['学号', registerForm.studentNo],
     ['姓名', registerForm.realName],
@@ -45,8 +47,26 @@ function submitRegister() {
     return
   }
 
-  ElMessage.success('注册成功，请登录')
-  router.push('/login')
+  submitting.value = true
+  try {
+    await authApi.register({
+      studentNo: registerForm.studentNo.trim(),
+      realName: registerForm.realName.trim(),
+      nickname: registerForm.realName.trim(),
+      department: registerForm.major.trim(),
+      enrollmentYear: registerForm.year,
+      email: registerForm.email.trim(),
+      password: registerForm.password,
+      phoneVisible: registerForm.phoneVisible,
+      wechatVisible: registerForm.wechatVisible,
+    })
+    ElMessage.success('注册成功，请登录')
+    router.push('/login')
+  } catch (error) {
+    ElMessage.error(error.message || '注册失败')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -102,7 +122,13 @@ function submitRegister() {
             <el-checkbox v-model="registerForm.wechatVisible">微信/QQ 对买家/卖家公开</el-checkbox>
           </div>
 
-          <el-button type="primary" size="large" class="full-button register-submit" @click="submitRegister">
+          <el-button
+            type="primary"
+            size="large"
+            class="full-button register-submit"
+            :loading="submitting"
+            @click="submitRegister"
+          >
             注册并完成实名绑定
           </el-button>
         </el-form>

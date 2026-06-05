@@ -1,10 +1,13 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminProducts } from '../../data/adminMock'
 import { campuses, categories } from '../../data/mock'
+import { adminApi } from '../../services/api'
+import { normalizeItemPage } from '../../services/normalizers'
 
 const selectedRows = ref([])
+const products = ref([])
+const loading = ref(false)
 const filters = reactive({
   category: '',
   campus: '',
@@ -12,17 +15,32 @@ const filters = reactive({
 })
 
 const filteredProducts = computed(() =>
-  adminProducts.filter((product) => {
+  products.value.filter((product) => {
     const categoryMatched = !filters.category || product.category === filters.category
     const campusMatched = !filters.campus || product.campus === filters.campus
     const dateMatched =
       !Array.isArray(filters.date) ||
       filters.date.length !== 2 ||
-      (new Date(product.publishedAt) >= new Date(filters.date[0]) &&
-        new Date(product.publishedAt) <= new Date(filters.date[1]))
+      (new Date(product.publishedAt || product.date) >= new Date(filters.date[0]) &&
+        new Date(product.publishedAt || product.date) <= new Date(filters.date[1]))
     return categoryMatched && campusMatched && dateMatched
   }),
 )
+
+async function loadItems() {
+  loading.value = true
+  try {
+    const response = await adminApi.items()
+    products.value = normalizeItemPage(response).list.map((item) => ({
+      ...item,
+      publishedAt: item.date,
+    }))
+  } catch (error) {
+    ElMessage.error(error.message || '商品列表加载失败')
+  } finally {
+    loading.value = false
+  }
+}
 
 function batchAudit() {
   ElMessage.success(`已审核 ${selectedRows.value.length || filteredProducts.value.length} 件商品`)
@@ -33,8 +51,11 @@ function batchRemove() {
     confirmButtonText: '确认下架',
     cancelButtonText: '取消',
     type: 'warning',
-  }).then(() => {
-    ElMessage.success('批量下架操作已提交')
+  }).then(async () => {
+    const rows = selectedRows.value.length ? selectedRows.value : filteredProducts.value
+    await Promise.all(rows.map((row) => adminApi.offShelfItem(row.id)))
+    ElMessage.success(`已下架 ${rows.length} 件商品`)
+    loadItems()
   }).catch(() => {})
 }
 
@@ -43,8 +64,10 @@ function removeItem(row) {
     confirmButtonText: '确认下架',
     cancelButtonText: '取消',
     type: 'warning',
-  }).then(() => {
+  }).then(async () => {
+    await adminApi.offShelfItem(row.id)
     ElMessage.success('商品已下架')
+    loadItems()
   }).catch(() => {})
 }
 
@@ -53,14 +76,36 @@ function deleteItem(row) {
     confirmButtonText: '确认删除',
     cancelButtonText: '取消',
     type: 'error',
-  }).then(() => {
+  }).then(async () => {
+    await adminApi.deleteItem(row.id)
     ElMessage.success('商品已删除')
+    loadItems()
   }).catch(() => {})
 }
 
 function auditItem(row) {
   ElMessage.success(`商品「${row.title}」已通过审核`)
 }
+
+function statusType(status) {
+  if (status === 'ON_SALE' || status === '上架') return 'success'
+  if (status === 'REMOVED' || status === '违规') return 'danger'
+  if (status === 'SOLD') return 'info'
+  return 'warning'
+}
+
+function statusText(status) {
+  const map = {
+    ON_SALE: '上架',
+    REMOVED: '已下架',
+    SOLD: '已售出',
+    RESERVED: '已预约',
+    DRAFT: '草稿',
+  }
+  return map[status] || status || '未知'
+}
+
+onMounted(loadItems)
 </script>
 
 <template>
@@ -96,7 +141,7 @@ function auditItem(row) {
         </div>
       </template>
 
-      <el-table :data="filteredProducts" stripe @selection-change="selectedRows = $event">
+      <el-table v-loading="loading" :data="filteredProducts" stripe @selection-change="selectedRows = $event">
         <el-table-column type="selection" width="48" />
         <el-table-column prop="title" label="商品标题" min-width="220" />
         <el-table-column prop="category" label="分类" min-width="110" />
@@ -107,8 +152,8 @@ function auditItem(row) {
         </el-table-column>
         <el-table-column prop="status" label="商品状态" min-width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === '上架' ? 'success' : row.status === '违规' ? 'danger' : 'info'">
-              {{ row.status }}
+            <el-tag :type="statusType(row.status)">
+              {{ statusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>

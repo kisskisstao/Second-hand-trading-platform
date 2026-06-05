@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminChart from '../../components/admin/AdminChart.vue'
 import { adminStats, campusDistribution } from '../../data/adminMock'
-import { categories } from '../../data/mock'
+import { categories, products } from '../../data/mock'
 
 const router = useRouter()
 
@@ -22,7 +22,7 @@ const lineOption = {
       smooth: true,
       areaStyle: { opacity: 0.12 },
       itemStyle: { color: '#ff7800' },
-      data: [5200, 7800, 6800, 9100, 11800, 15200, 26840],
+      data: [0, 0, 0, 0, 0, 0, 0],
     },
   ],
 }
@@ -36,9 +36,9 @@ const pieOption = {
       type: 'pie',
       radius: ['42%', '68%'],
       center: ['50%', '46%'],
-      data: categories.map((category, index) => ({
+      data: categories.map((category) => ({
         name: category,
-        value: 180 + index * 70,
+        value: products.filter((product) => product.category === category).length,
       })),
     },
   ],
@@ -51,7 +51,7 @@ const barOption = computed(() => ({
   yAxis: { type: 'value' },
   series: [
     {
-      name: '用户数',
+      name: '商品数',
       type: 'bar',
       itemStyle: { color: '#ff7800', borderRadius: [6, 6, 0, 0] },
       data: campusDistribution.map((item) => item.count),
@@ -80,7 +80,7 @@ const barOption = computed(() => ({
         <AdminChart :option="pieOption" />
       </el-card>
       <el-card shadow="never" class="chart-card wide">
-        <template #header>各校区用户分布</template>
+        <template #header>各校区商品分布</template>
         <AdminChart :option="barOption" />
       </el-card>
     </section>
@@ -88,15 +88,15 @@ const barOption = computed(() => ({
     <section class="admin-quick-grid">
       <el-card shadow="hover" @click="router.push('/admin/users')">
         <strong>待审核实名用户</strong>
-        <span>24 人</span>
+        <span>0 人</span>
       </el-card>
       <el-card shadow="hover" @click="router.push('/admin/reports')">
         <strong>待处理举报</strong>
-        <span>9 条</span>
+        <span>0 条</span>
       </el-card>
       <el-card shadow="hover" @click="router.push('/admin/orders')">
         <strong>待仲裁纠纷</strong>
-        <span>3 单</span>
+        <span>0 单</span>
       </el-card>
     </section>
   </div>

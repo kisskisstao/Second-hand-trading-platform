@@ -15,25 +15,35 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
-import com.example.Second_hand.trading.platform.service.TradeDataService;
+import com.example.Second_hand.trading.platform.service.AdminService;
+import com.example.Second_hand.trading.platform.service.ItemService;
+import com.example.Second_hand.trading.platform.service.TradeWorkflowService;
+import com.example.Second_hand.trading.platform.service.UserService;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
-	private final TradeDataService tradeDataService;
+	private final AdminService adminService;
+	private final UserService userService;
+	private final ItemService itemService;
+	private final TradeWorkflowService tradeWorkflowService;
 
-	public AdminController(TradeDataService tradeDataService) {
-		this.tradeDataService = tradeDataService;
+	public AdminController(AdminService adminService, UserService userService, ItemService itemService,
+			TradeWorkflowService tradeWorkflowService) {
+		this.adminService = adminService;
+		this.userService = userService;
+		this.itemService = itemService;
+		this.tradeWorkflowService = tradeWorkflowService;
 	}
 
 	@GetMapping("/dashboard")
 	public ApiResponse<Map<String, Object>> dashboard() {
-		return ApiResponse.success(tradeDataService.dashboard());
+		return ApiResponse.success(adminService.dashboard());
 	}
 
 	@GetMapping("/users")
 	public ApiResponse<PageResponse<Map<String, Object>>> users() {
-		return ApiResponse.success(PageResponse.of(tradeDataService.users(), 1, 10));
+		return ApiResponse.success(PageResponse.of(userService.users(), 1, 10));
 	}
 
 	@PatchMapping("/users/{userId}/disable")
@@ -48,22 +58,32 @@ public class AdminController {
 
 	@GetMapping("/items")
 	public ApiResponse<PageResponse<Map<String, Object>>> items() {
-		return ApiResponse.success(PageResponse.of(tradeDataService.items(), 1, 10));
+		return ApiResponse.success(PageResponse.of(itemService.items(), 1, 10));
 	}
 
 	@PatchMapping("/items/{itemId}/remove")
 	public ApiResponse<Boolean> removeItem(@PathVariable Integer itemId, @RequestBody(required = false) Map<String, Object> body) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(itemService.adminOffShelfItem(itemId));
+	}
+
+	@PatchMapping("/items/{itemId}/off-shelf")
+	public ApiResponse<Boolean> offShelfItem(@PathVariable Integer itemId, @RequestBody(required = false) Map<String, Object> body) {
+		return ApiResponse.success(itemService.adminOffShelfItem(itemId));
+	}
+
+	@PatchMapping("/items/{itemId}/on-shelf")
+	public ApiResponse<Boolean> onShelfItem(@PathVariable Integer itemId, @RequestBody(required = false) Map<String, Object> body) {
+		return ApiResponse.success(itemService.adminOnShelfItem(itemId));
 	}
 
 	@DeleteMapping("/items/{itemId}")
 	public ApiResponse<Boolean> deleteItem(@PathVariable Integer itemId) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(itemService.adminSoftDeleteItem(itemId));
 	}
 
 	@GetMapping("/categories")
 	public ApiResponse<List<Map<String, Object>>> categories() {
-		return ApiResponse.success(tradeDataService.categories());
+		return ApiResponse.success(itemService.categories());
 	}
 
 	@PostMapping("/categories")
@@ -83,12 +103,12 @@ public class AdminController {
 
 	@GetMapping("/orders")
 	public ApiResponse<PageResponse<Map<String, Object>>> orders() {
-		return ApiResponse.success(PageResponse.of(tradeDataService.orders(), 1, 10));
+		return ApiResponse.success(PageResponse.of(tradeWorkflowService.orders(), 1, 10));
 	}
 
 	@GetMapping("/disputes")
 	public ApiResponse<PageResponse<Map<String, Object>>> disputes() {
-		return ApiResponse.success(PageResponse.of(tradeDataService.disputes(), 1, 10));
+		return ApiResponse.success(PageResponse.of(adminService.disputes(), 1, 10));
 	}
 
 	@PatchMapping("/disputes/{disputeId}/resolve")
@@ -98,7 +118,7 @@ public class AdminController {
 
 	@GetMapping("/reports")
 	public ApiResponse<PageResponse<Map<String, Object>>> reports() {
-		return ApiResponse.success(PageResponse.of(tradeDataService.reports(), 1, 10));
+		return ApiResponse.success(PageResponse.of(adminService.reports(), 1, 10));
 	}
 
 	@PatchMapping("/reports/{reportId}/approve")
@@ -113,7 +133,7 @@ public class AdminController {
 
 	@GetMapping("/settings")
 	public ApiResponse<Map<String, Object>> settings() {
-		return ApiResponse.success(tradeDataService.settings());
+		return ApiResponse.success(adminService.settings());
 	}
 
 	@PutMapping("/settings")
@@ -123,7 +143,7 @@ public class AdminController {
 
 	@GetMapping("/notices")
 	public ApiResponse<PageResponse<Map<String, Object>>> notices() {
-		return ApiResponse.success(PageResponse.of(tradeDataService.notices(), 1, 10));
+		return ApiResponse.success(PageResponse.of(adminService.notices(), 1, 10));
 	}
 
 	@PostMapping("/notices")

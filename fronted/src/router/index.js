@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('../views/front/RegisterView.vue'),
     },
     {
+      path: '/items',
+      name: 'item-list',
+      component: () => import('../views/front/SearchResultsView.vue'),
+    },
+    {
       path: '/items/publish',
       name: 'item-publish',
       component: () => import('../views/front/PublishItemView.vue'),

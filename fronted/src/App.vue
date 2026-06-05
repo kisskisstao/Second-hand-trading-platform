@@ -3,20 +3,18 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Bell, House, Plus, QuestionFilled, Search, User } from '@element-plus/icons-vue'
-import { campuses, notifications } from './data/mock'
 import { useAuthStore } from './stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const selectedCampus = ref('校本部')
 const keyword = ref('')
+const notifications = []
 
 function goSearch() {
   router.push({
-    path: '/search',
+    path: '/items',
     query: {
       keyword: keyword.value,
-      campus: selectedCampus.value,
     },
   })
 }
@@ -57,10 +55,6 @@ function logout() {
             <span class="logo-mark">闲</span>
             <span>校园二手闲置网</span>
           </RouterLink>
-
-          <el-select v-model="selectedCampus" class="campus-select" size="large">
-            <el-option v-for="campus in campuses" :key="campus" :label="campus" :value="campus" />
-          </el-select>
 
           <nav class="top-links" aria-label="顶部导航">
             <RouterLink to="/">
@@ -108,15 +102,16 @@ function logout() {
 
           <el-popover placement="bottom-end" width="320" trigger="click">
             <template #reference>
-              <el-badge :value="3" class="notice-badge">
+              <el-badge :value="notifications.length" :hidden="notifications.length === 0" class="notice-badge">
                 <el-button :icon="Bell" circle size="large" aria-label="消息通知" />
               </el-badge>
             </template>
             <div class="notice-panel">
               <h3>消息通知</h3>
-              <ul>
+              <ul v-if="notifications.length > 0">
                 <li v-for="notice in notifications" :key="notice">{{ notice }}</li>
               </ul>
+              <el-empty v-else description="暂无消息" :image-size="72" />
               <el-button text type="primary" @click="router.push('/chats')">查看聊天消息</el-button>
             </div>
           </el-popover>

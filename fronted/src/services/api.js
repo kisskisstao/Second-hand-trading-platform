@@ -18,7 +18,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message = error.response?.data?.message || error.message || 'Request failed'
+    const message = error.response?.data?.message || error.response?.data?.detail || error.message || 'Request failed'
     return Promise.reject(new Error(message))
   },
 )
@@ -60,7 +60,10 @@ export const itemApi = {
   list: (params) => api.get('/items', { params }),
   detail: (itemId) => api.get(`/items/${itemId}`),
   update: (itemId, data) => api.put(`/items/${itemId}`, data),
-  remove: (itemId) => api.patch(`/items/${itemId}/remove`),
+  offShelf: (itemId) => api.patch(`/items/${itemId}/off-shelf`),
+  onShelf: (itemId) => api.patch(`/items/${itemId}/on-shelf`),
+  delete: (itemId) => api.delete(`/items/${itemId}`),
+  remove: (itemId) => api.patch(`/items/${itemId}/off-shelf`),
   favorite: (itemId) => api.post(`/items/${itemId}/favorite`),
   unfavorite: (itemId) => api.delete(`/items/${itemId}/favorite`),
   comments: (itemId) => api.get(`/items/${itemId}/comments`),
@@ -74,24 +77,28 @@ export const orderApi = {
   accept: (orderId) => api.patch(`/orders/${orderId}/accept`),
   cancel: (orderId, data) => api.patch(`/orders/${orderId}/cancel`, data),
   complete: (orderId) => api.patch(`/orders/${orderId}/complete`),
+  pay: (orderId, data) => api.post(`/orders/${orderId}/pay`, data),
   review: (orderId, data) => api.post(`/orders/${orderId}/reviews`, data),
 }
 
 export const wantedApi = {
-  create: (data) => api.post('/wanted-posts', data),
-  list: (params) => api.get('/wanted-posts', { params }),
-  close: (postId) => api.patch(`/wanted-posts/${postId}/close`),
+  create: (data) => api.post('/purchases', data),
+  list: (params) => api.get('/purchases', { params }),
+  close: (purchaseId) => api.patch(`/purchases/${purchaseId}/close`),
+  matches: (purchaseId) => api.get(`/purchases/${purchaseId}/matches`),
 }
 
 export const swapApi = {
-  create: (data) => api.post('/swap-requests', data),
-  list: (params) => api.get('/swap-requests', { params }),
-  accept: (requestId) => api.patch(`/swap-requests/${requestId}/accept`),
-  reject: (requestId, data) => api.patch(`/swap-requests/${requestId}/reject`, data),
-  cancel: (requestId) => api.patch(`/swap-requests/${requestId}/cancel`),
+  create: (data) => api.post('/exchanges', data),
+  list: (params) => api.get('/exchanges', { params }),
+  matches: (exchangeId) => api.get(`/exchanges/${exchangeId}/matches`),
+  accept: (exchangeId) => api.patch(`/exchanges/${exchangeId}/matched`),
+  reject: (exchangeId, data) => api.patch(`/exchanges/${exchangeId}/cancel`, data),
+  cancel: (exchangeId) => api.patch(`/exchanges/${exchangeId}/cancel`),
 }
 
 export const chatApi = {
+  create: (data) => api.post('/chats', data),
   list: () => api.get('/chats'),
   messages: (chatId, params) => api.get(`/chats/${chatId}/messages`, { params }),
   sendMessage: (chatId, data) => api.post(`/chats/${chatId}/messages`, data),
@@ -103,7 +110,9 @@ export const adminApi = {
   disableUser: (userId) => api.patch(`/admin/users/${userId}/disable`),
   enableUser: (userId) => api.patch(`/admin/users/${userId}/enable`),
   items: (params) => api.get('/admin/items', { params }),
-  removeItem: (itemId, data) => api.patch(`/admin/items/${itemId}/remove`, data),
+  offShelfItem: (itemId, data) => api.patch(`/admin/items/${itemId}/off-shelf`, data),
+  onShelfItem: (itemId, data) => api.patch(`/admin/items/${itemId}/on-shelf`, data),
+  removeItem: (itemId, data) => api.patch(`/admin/items/${itemId}/off-shelf`, data),
   deleteItem: (itemId) => api.delete(`/admin/items/${itemId}`),
   categories: () => api.get('/admin/categories'),
   createCategory: (data) => api.post('/admin/categories', data),

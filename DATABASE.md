@@ -24,6 +24,12 @@ backend/sql/01_create_tables.sql
 backend/sql/02_seed_data.sql
 ```
 
+求购和置换新表增量脚本：
+
+```text
+backend/sql/03_add_purchases_exchanges.sql
+```
+
 一键执行脚本：
 
 ```text
@@ -51,8 +57,10 @@ password: root
 
 - `users` 普通用户表不插入账号数据。
 - `admin_users` 保留 1 个管理员账号：`admin/admin123456`。
-- 其他主要业务表插入约 10 条演示业务数据。
+- 商品基础数据保留 20 条。
+- 订单、聊天、求购、置换、收藏、留言、通知、举报、纠纷、公告默认不插入演示数据。
 - SQL 文件使用 `SET NAMES utf8mb4`，脚本通过 MySQL 直接读取文件，避免中文乱码。
+- 本轮已执行 `backend/sql/03_add_purchases_exchanges.sql`，当前 `purchases` 和 `exchanges` 表已在本地数据库创建完成。
 
 ## 1. 设计原则
 
@@ -363,7 +371,7 @@ password: root
 
 ### wanted_posts
 
-求购帖子表。
+旧求购帖子表，当前保留用于兼容旧路径；新接口主表为 `purchases`。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -379,9 +387,36 @@ password: root
 | created_at | DATETIME | 创建时间 |
 | updated_at | DATETIME | 更新时间 |
 
+### purchases
+
+求购表，`POST /api/purchases` 真实写入本表。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | BIGINT PK AI | 求购 ID |
+| user_id | BIGINT | 发布人 |
+| title | VARCHAR(100) | 求购物品 |
+| description | TEXT | 需求描述 |
+| category_id | BIGINT | 分类 |
+| campus | VARCHAR(64) | 需求校区 |
+| budget_min | DECIMAL(10,2) | 最低预算 |
+| budget_max | DECIMAL(10,2) | 最高预算 |
+| status | VARCHAR(32) | `OPEN` / `CLOSED` |
+| deleted | TINYINT(1) | 软删除 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+索引：
+
+- `idx_purchases_user_id(user_id)`
+- `idx_purchases_category_id(category_id)`
+- `idx_purchases_campus(campus)`
+- `idx_purchases_status(status)`
+- `idx_purchases_created_at(created_at)`
+
 ### swap_requests
 
-以物换物申请表。`items.swap_supported` 表示商品是否支持置换，具体申请记录落到本表。
+旧以物换物申请表，当前保留用于兼容旧路径；新接口主表为 `exchanges`。`items.swap_supported` 表示商品是否支持置换。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -402,6 +437,52 @@ password: root
 - `idx_swap_requests_requester_id(requester_id)`
 - `idx_swap_requests_target_item_id(target_item_id)`
 - `idx_swap_requests_status(status)`
+
+### exchanges
+
+置换表，`POST /api/exchanges` 真实写入本表。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | BIGINT PK AI | 置换 ID |
+| exchange_no | VARCHAR(64) UNIQUE | 置换编号 |
+| user_id | BIGINT | 发布人 |
+| item_id | BIGINT | 发布人用于置换的商品 |
+| target_item_id | BIGINT NULL | 指定目标商品，可为空 |
+| target_category_id | BIGINT NULL | 期望目标分类 |
+| expected_title | VARCHAR(100) | 期望换到的物品 |
+| description | TEXT | 置换说明 |
+| campus | VARCHAR(64) | 交易校区 |
+| status | VARCHAR(32) | `OPEN` / `MATCHED` / `CANCELLED` |
+| deleted | TINYINT(1) | 软删除 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+
+索引：
+
+- `idx_exchanges_user_id(user_id)`
+- `idx_exchanges_item_id(item_id)`
+- `idx_exchanges_target_item_id(target_item_id)`
+- `idx_exchanges_target_category_id(target_category_id)`
+- `idx_exchanges_status(status)`
+- `idx_exchanges_created_at(created_at)`
+
+### 匹配推荐规则
+
+求购匹配商品时，按以下规则加权打分：
+
+- 分类一致。
+- 校区一致。
+- 商品价格在预算内。
+- 标题或描述关键词相似。
+
+置换匹配商品时，按以下规则加权打分：
+
+- 指定目标商品一致。
+- 目标分类一致。
+- 校区一致。
+- 商品支持置换。
+- 期望标题或描述关键词相似。
 
 ## 7. 风控、举报与纠纷
 
@@ -556,12 +637,14 @@ password: root
 13. `chats`
 14. `chat_messages`
 15. `wanted_posts`
-16. `swap_requests`
-17. `reports`
-18. `disputes`
-19. `sensitive_words`
-20. `announcements`
-21. `notifications`
-22. `system_settings`
-23. `files`
-24. `audit_logs`
+16. `purchases`
+17. `swap_requests`
+18. `exchanges`
+19. `reports`
+20. `disputes`
+21. `sensitive_words`
+22. `announcements`
+23. `notifications`
+24. `system_settings`
+25. `files`
+26. `audit_logs`

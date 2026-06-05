@@ -8,36 +8,41 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
-import com.example.Second_hand.trading.platform.service.TradeDataService;
+import com.example.Second_hand.trading.platform.service.AuthService;
+import com.example.Second_hand.trading.platform.service.JwtService;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-	private final TradeDataService tradeDataService;
+	private final AuthService authService;
+	private final JwtService jwtService;
 
-	public AuthController(TradeDataService tradeDataService) {
-		this.tradeDataService = tradeDataService;
+	public AuthController(AuthService authService, JwtService jwtService) {
+		this.authService = authService;
+		this.jwtService = jwtService;
 	}
 
 	@PostMapping("/register")
 	public ApiResponse<Map<String, Object>> register(@RequestBody Map<String, Object> body) {
-		return ApiResponse.success(Map.of(
-				"userId", 1,
-				"studentNo", body.getOrDefault("studentNo", "20240001"),
-				"nickname", body.getOrDefault("nickname", body.getOrDefault("realName", "新用户"))));
+		return ApiResponse.success(Map.of("user", authService.registerUser(body)));
 	}
 
 	@PostMapping("/login")
 	public ApiResponse<Map<String, Object>> login(@RequestBody Map<String, Object> body) {
+		Map<String, Object> user = authService.loginUser(body);
 		return ApiResponse.success(Map.of(
-				"accessToken", "mock-user-token",
-				"user", tradeDataService.currentUser()));
+				"accessToken", jwtService.createUserToken(user.get("userId"), String.valueOf(user.get("studentNo"))),
+				"user", user));
 	}
 
 	@PostMapping("/admin/login")
 	public ApiResponse<Map<String, Object>> adminLogin(@RequestBody Map<String, Object> body) {
+		Map<String, Object> admin = authService.loginAdmin(body);
 		return ApiResponse.success(Map.of(
-				"accessToken", "mock-admin-token",
-				"admin", Map.of("username", body.getOrDefault("account", "admin"), "role", "ADMIN")));
+				"accessToken", jwtService.createAdminToken(
+						admin.get("adminId"),
+						String.valueOf(admin.get("username")),
+						String.valueOf(admin.get("role"))),
+				"admin", admin));
 	}
 }

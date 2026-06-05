@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, Message, School, User } from '@element-plus/icons-vue'
+import { authApi } from '../../services/api'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
@@ -10,6 +11,8 @@ const route = useRoute()
 const authStore = useAuthStore()
 const loginTab = ref(route.query.tab === 'admin' ? 'admin' : 'user')
 const userLoginMode = ref('password')
+const userLoading = ref(false)
+const adminLoading = ref(false)
 
 const loginForm = reactive({
   account: '',
@@ -23,19 +26,31 @@ const adminForm = reactive({
   password: 'admin123456',
 })
 
-function loginByPassword() {
+async function loginByPassword() {
   if (!loginForm.account.trim() || !loginForm.password.trim()) {
     ElMessage.warning('请输入学号/工号和密码')
     return
   }
 
-  authStore.login({
-    role: 'user',
-    account: loginForm.account,
-    nickname: `用户${loginForm.account}`,
-  })
-  ElMessage.success('登录成功')
-  router.push('/profile')
+  userLoading.value = true
+  try {
+    const response = await authApi.login({
+      account: loginForm.account.trim(),
+      password: loginForm.password,
+    })
+    authStore.login({
+      role: 'user',
+      account: loginForm.account.trim(),
+      accessToken: response.data.accessToken,
+      user: response.data.user,
+    })
+    ElMessage.success('登录成功')
+    router.push('/profile')
+  } catch (error) {
+    ElMessage.error(error.message || '登录失败')
+  } finally {
+    userLoading.value = false
+  }
 }
 
 function loginByEmail() {
@@ -44,13 +59,7 @@ function loginByEmail() {
     return
   }
 
-  authStore.login({
-    role: 'user',
-    account: loginForm.email,
-    nickname: '邮箱用户',
-  })
-  ElMessage.success('邮箱登录成功')
-  router.push('/profile')
+  ElMessage.warning('邮箱验证码登录暂未接入，请使用密码登录')
 }
 
 function sendCode() {
@@ -62,28 +71,34 @@ function sendCode() {
 }
 
 function ssoLogin() {
-  authStore.login({
-    role: 'user',
-    account: 'sso-user',
-    nickname: '校园 SSO 用户',
-  })
-  ElMessage.success('SSO 登录成功')
-  router.push('/profile')
+  ElMessage.warning('SSO 登录暂未接入，请使用密码登录')
 }
 
-function adminLogin() {
-  if (adminForm.account !== 'admin' || adminForm.password !== 'admin123456') {
-    ElMessage.error('管理员账号或密码错误')
+async function adminLogin() {
+  if (!adminForm.account.trim() || !adminForm.password.trim()) {
+    ElMessage.warning('请输入管理员账号和密码')
     return
   }
 
-  authStore.login({
-    role: 'admin',
-    account: 'admin',
-    nickname: '管理员',
-  })
-  ElMessage.success('管理员登录成功')
-  router.push('/admin')
+  adminLoading.value = true
+  try {
+    const response = await authApi.adminLogin({
+      account: adminForm.account.trim(),
+      password: adminForm.password,
+    })
+    authStore.login({
+      role: 'admin',
+      account: adminForm.account.trim(),
+      accessToken: response.data.accessToken,
+      admin: response.data.admin,
+    })
+    ElMessage.success('管理员登录成功')
+    router.push('/admin')
+  } catch (error) {
+    ElMessage.error(error.message || '管理员账号或密码错误')
+  } finally {
+    adminLoading.value = false
+  }
 }
 </script>
 
@@ -114,7 +129,13 @@ function adminLogin() {
                       @keyup.enter="loginByPassword"
                     />
                   </el-form-item>
-                  <el-button type="primary" size="large" class="full-button" @click="loginByPassword">
+                  <el-button
+                    type="primary"
+                    size="large"
+                    class="full-button"
+                    :loading="userLoading"
+                    @click="loginByPassword"
+                  >
                     登录
                   </el-button>
                 </el-form>
@@ -158,7 +179,13 @@ function adminLogin() {
               <el-form-item label="管理员密码">
                 <el-input v-model="adminForm.password" show-password @keyup.enter="adminLogin" />
               </el-form-item>
-              <el-button type="primary" size="large" class="full-button" @click="adminLogin">
+              <el-button
+                type="primary"
+                size="large"
+                class="full-button"
+                :loading="adminLoading"
+                @click="adminLogin"
+              >
                 进入后台管理面板
               </el-button>
             </el-form>

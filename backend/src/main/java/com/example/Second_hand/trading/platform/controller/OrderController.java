@@ -6,51 +6,71 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
-import com.example.Second_hand.trading.platform.service.TradeDataService;
+import com.example.Second_hand.trading.platform.service.TradeWorkflowService;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
-	private final TradeDataService tradeDataService;
+	private final TradeWorkflowService tradeWorkflowService;
 
-	public OrderController(TradeDataService tradeDataService) {
-		this.tradeDataService = tradeDataService;
+	public OrderController(TradeWorkflowService tradeWorkflowService) {
+		this.tradeWorkflowService = tradeWorkflowService;
 	}
 
 	@PostMapping
-	public ApiResponse<Map<String, Object>> create(@RequestBody Map<String, Object> body) {
-		return ApiResponse.success(Map.of("orderId", 5004, "orderStatus", "PENDING"));
+	public ApiResponse<Map<String, Object>> create(
+			@RequestAttribute("authId") Long authId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(tradeWorkflowService.createOrder(authId, body));
 	}
 
 	@GetMapping
-	public ApiResponse<PageResponse<Map<String, Object>>> list() {
-		return ApiResponse.success(PageResponse.of(tradeDataService.orders(), 1, 10));
+	public ApiResponse<PageResponse<Map<String, Object>>> list(@RequestAttribute("authId") Long authId) {
+		return ApiResponse.success(PageResponse.of(tradeWorkflowService.orders(authId), 1, 10));
 	}
 
 	@GetMapping("/{orderId}")
-	public ApiResponse<Map<String, Object>> detail(@PathVariable Integer orderId) {
-		return ApiResponse.success(tradeDataService.orderDetail(orderId));
+	public ApiResponse<Map<String, Object>> detail(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer orderId) {
+		return ApiResponse.success(tradeWorkflowService.orderDetailForUser(orderId.longValue(), authId));
 	}
 
 	@PatchMapping("/{orderId}/accept")
-	public ApiResponse<Boolean> accept(@PathVariable Integer orderId) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> accept(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer orderId) {
+		return ApiResponse.success(tradeWorkflowService.acceptOrder(authId, orderId));
 	}
 
 	@PatchMapping("/{orderId}/cancel")
-	public ApiResponse<Boolean> cancel(@PathVariable Integer orderId, @RequestBody(required = false) Map<String, Object> body) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> cancel(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer orderId,
+			@RequestBody(required = false) Map<String, Object> body) {
+		return ApiResponse.success(tradeWorkflowService.cancelOrder(authId, orderId, body));
 	}
 
 	@PatchMapping("/{orderId}/complete")
-	public ApiResponse<Boolean> complete(@PathVariable Integer orderId) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> complete(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer orderId) {
+		return ApiResponse.success(tradeWorkflowService.completeOrder(authId, orderId));
+	}
+
+	@PostMapping("/{orderId}/pay")
+	public ApiResponse<Map<String, Object>> pay(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer orderId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(tradeWorkflowService.createPayment(authId, orderId, body));
 	}
 
 	@PostMapping("/{orderId}/reviews")
