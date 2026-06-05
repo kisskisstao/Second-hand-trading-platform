@@ -1,15 +1,23 @@
 package com.example.Second_hand.trading.platform.service;
 
 import java.math.BigDecimal;
+import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AdminService {
@@ -154,5 +162,130 @@ public class AdminService {
 				ORDER BY created_at DESC
 				LIMIT 100
 				""");
+	}
+
+	@Transactional
+	public Map<String, Object> createNotice(Long adminId, Map<String, Object> body) {
+		if (adminId == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录管理员账号");
+		}
+		NoticePayload payload = noticePayload(body);
+		KeyHolder keyHolder = new GeneratedKeyHolder();
+		jdbcTemplate.update(connection -> {
+			var statement = connection.prepareStatement("""
+					INSERT INTO announcements (
+					  title, content, scope_type, campus, popup_enabled, status, published_at, created_by
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+					""", Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, payload.title());
+			statement.setString(2, payload.content());
+			statement.setString(3, payload.scopeType());
+			statement.setString(4, payload.campus());
+			statement.setInt(5, payload.popupEnabled() ? 1 : 0);
+			statement.setString(6, payload.status());
+			statement.setObject(7, payload.publishedAt());
+			statement.setLong(8, adminId);
+			return statement;
+		}, keyHolder);
+		Number key = keyHolder.getKey();
+		if (key == null) {
+			throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "公告创建失败");
+		}
+		return notice(key.longValue());
+	}
+
+	@Transactional
+	public boolean updateNotice(Integer noticeId, Map<String, Object> body) {
+		NoticePayload payload = noticePayload(body);
+		int updated = jdbcTemplate.update("""
+				UPDATE announcements
+				SET title = ?, content = ?, scope_type = ?, campus = ?, popup_enabled = ?, status = ?, published_at = ?
+				WHERE id = ?
+				""",
+				payload.title(), payload.content(), payload.scopeType(), payload.campus(),
+				payload.popupEnabled() ? 1 : 0, payload.status(), payload.publishedAt(), noticeId);
+		if (updated == 0) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
+		}
+		return true;
+	}
+
+	@Transactional
+	public boolean deleteNotice(Integer noticeId) {
+		int deleted = jdbcTemplate.update("DELETE FROM announcements WHERE id = ?", noticeId);
+		if (deleted == 0) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
+		}
+		return true;
+	}
+
+	private Map<String, Object> notice(Long noticeId) {
+		List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+				SELECT id AS noticeId, title, content, scope_type AS scopeType, campus, popup_enabled AS popupEnabled,
+				  status, published_at AS publishedAt, created_by AS createdBy, created_at AS createdAt, updated_at AS updatedAt
+				FROM announcements
+				WHERE id = ?
+				LIMIT 1
+				""", noticeId);
+		if (rows.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "公告不存在");
+		}
+		return rows.get(0);
+	}
+
+	private NoticePayload noticePayload(Map<String, Object> body) {
+		String title = requiredText(body, "title", "公告标题");
+		String content = requiredText(body, "content", "公告内容");
+		String status = noticeStatus(optionalText(body, "status"));
+		String scope = optionalText(body, "scope");
+		String scopeType = optionalText(body, "scopeType");
+		String campus = optionalText(body, "campus");
+
+		if (!StringUtils.hasText(scopeType)) {
+			scopeType = StringUtils.hasText(scope) && !"全平台".equals(scope) ? "CAMPUS" : "ALL";
+		}
+		scopeType = scopeType.toUpperCase();
+		if ("ALL".equals(scopeType)) {
+			campus = null;
+		} else if (!StringUtils.hasText(campus)) {
+			campus = scope;
+		}
+		if (!"ALL".equals(scopeType) && !StringUtils.hasText(campus)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择公告推送校区");
+		}
+
+		boolean popupEnabled = boolValue(body.get("popupEnabled"));
+		LocalDateTime publishedAt = "PUBLISHED".equals(status) ? LocalDateTime.now() : null;
+		return new NoticePayload(title, content, scopeType, campus, popupEnabled, status, publishedAt);
+	}
+
+	private String noticeStatus(String value) {
+		if (!StringUtils.hasText(value)) {
+			return "DRAFT";
+		}
+		String text = value.trim().toUpperCase();
+		return text.contains("PUBLISH") || value.contains("发布") || value.contains("已发布") ? "PUBLISHED" : "DRAFT";
+	}
+
+	private String requiredText(Map<String, Object> body, String key, String label) {
+		String value = optionalText(body, key);
+		if (!StringUtils.hasText(value)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写" + label);
+		}
+		return value.trim();
+	}
+
+	private String optionalText(Map<String, Object> body, String key) {
+		Object value = body.get(key);
+		return value == null || !StringUtils.hasText(String.valueOf(value)) ? "" : String.valueOf(value).trim();
+	}
+
+	private boolean boolValue(Object value) {
+		return Boolean.TRUE.equals(value) || "true".equalsIgnoreCase(String.valueOf(value))
+				|| "1".equals(String.valueOf(value));
+	}
+
+	private record NoticePayload(String title, String content, String scopeType, String campus, boolean popupEnabled,
+			String status, LocalDateTime publishedAt) {
 	}
 }

@@ -113,10 +113,6 @@ public class ItemService {
 		itemMapper.insert(item);
 
 		List<String> imageUrls = imageUrls(body);
-		if (imageUrls.isEmpty() && StringUtils.hasText(imageUrl())) {
-			imageUrls.add(imageUrl());
-		}
-
 		int sortOrder = 0;
 		for (String url : imageUrls) {
 			ItemImageEntity image = new ItemImageEntity();
@@ -322,12 +318,6 @@ public class ItemService {
 		comment.setDeleted(0);
 		itemCommentMapper.insert(comment);
 		return commentRow(comment);
-	}
-
-	public String imageUrl() {
-		String sql = "SELECT url FROM files WHERE file_type = 'IMAGE' ORDER BY id LIMIT 1";
-		List<String> urls = jdbcTemplate.queryForList(sql, String.class);
-		return urls.isEmpty() ? "" : urls.get(0);
 	}
 
 	private LambdaQueryWrapper<ItemEntity> itemWrapper(ItemSearchCriteria criteria, boolean publicOnly) {

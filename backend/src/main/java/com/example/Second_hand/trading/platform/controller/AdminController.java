@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -152,17 +153,19 @@ public class AdminController {
 	}
 
 	@PostMapping("/notices")
-	public ApiResponse<Map<String, Object>> createNotice(@RequestBody Map<String, Object> body) {
-		return ApiResponse.success(Map.of("noticeId", 3));
+	public ApiResponse<Map<String, Object>> createNotice(
+			@RequestAttribute("authId") Long authId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(adminService.createNotice(authId, body));
 	}
 
 	@PutMapping("/notices/{noticeId}")
 	public ApiResponse<Boolean> updateNotice(@PathVariable Integer noticeId, @RequestBody Map<String, Object> body) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(adminService.updateNotice(noticeId, body));
 	}
 
 	@DeleteMapping("/notices/{noticeId}")
 	public ApiResponse<Boolean> deleteNotice(@PathVariable Integer noticeId) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(adminService.deleteNotice(noticeId));
 	}
 }

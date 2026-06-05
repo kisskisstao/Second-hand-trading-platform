@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
@@ -11,6 +11,11 @@ const router = useRouter()
 const authStore = useAuthStore()
 const fileList = ref([])
 const submitting = ref(false)
+const savingDraft = ref(false)
+const uploadHeaders = computed(() => {
+  const token = localStorage.getItem('accessToken')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+})
 
 const form = reactive({
   title: '',
@@ -22,7 +27,6 @@ const form = reactive({
   campus: '',
   dorm: '',
   tradeModes: ['面交'],
-  status: '上架',
 })
 
 function formatText(command) {
@@ -42,20 +46,40 @@ function validateForm() {
 
 function imageUrls() {
   return fileList.value
-    .map((file) => file.url || file.response?.data?.url || file.response?.url)
+    .map((file) => file.response?.data?.url || file.response?.url || file.url || '')
+    .filter((url) => url && !url.startsWith('blob:') && !url.startsWith('data:'))
     .filter(Boolean)
 }
 
-function saveDraft() {
-  if (!authStore.isLoggedIn) {
-    router.push('/login')
-    return
-  }
-  form.status = '草稿'
-  ElMessage.success('草稿已保存')
+function hasUploadingImages() {
+  return fileList.value.some((file) => file.status === 'uploading')
 }
 
-async function submitItem() {
+function beforeImageUpload(file) {
+  if (!file.type?.startsWith('image/')) {
+    ElMessage.warning('只能上传图片文件')
+    return false
+  }
+  const maxSizeMb = 10
+  if (file.size / 1024 / 1024 > maxSizeMb) {
+    ElMessage.warning(`图片不能超过 ${maxSizeMb}MB`)
+    return false
+  }
+  return true
+}
+
+function handleUploadSuccess(response, uploadFile) {
+  if (!response?.data?.url) {
+    ElMessage.warning(`${uploadFile.name} 上传成功，但没有返回图片地址`)
+  }
+}
+
+function handleUploadError(error, uploadFile) {
+  console.error(error)
+  ElMessage.error(`${uploadFile.name} 上传失败，请重试`)
+}
+
+async function saveItem(status) {
   if (!authStore.isLoggedIn) {
     router.push('/login')
     return
@@ -66,8 +90,15 @@ async function submitItem() {
     ElMessage.warning(error)
     return
   }
+  if (hasUploadingImages()) {
+    ElMessage.warning('图片还在上传，请稍后再保存')
+    return
+  }
 
-  submitting.value = true
+  const isDraft = status === '草稿'
+  if (isDraft) savingDraft.value = true
+  else submitting.value = true
+
   try {
     const response = await itemApi.create({
       title: form.title.trim(),
@@ -79,16 +110,30 @@ async function submitItem() {
       campus: form.campus,
       dormitory: Array.isArray(form.dorm) ? form.dorm.join('/') : form.dorm,
       tradeModes: form.tradeModes,
-      status: form.status,
+      status,
       imageUrls: imageUrls(),
     })
-    ElMessage.success('商品已发布')
-    router.push(`/items/${response.data.itemId}`)
+    if (isDraft) {
+      ElMessage.success('草稿已保存')
+      router.push({ path: '/profile', query: { tab: 'selling', itemStatus: 'drafts' } })
+    } else {
+      ElMessage.success('商品已发布')
+      router.push(`/items/${response.data.itemId}`)
+    }
   } catch (error) {
-    ElMessage.error(error.message || '商品发布失败')
+    ElMessage.error(error.message || (isDraft ? '草稿保存失败' : '商品发布失败'))
   } finally {
-    submitting.value = false
+    if (isDraft) savingDraft.value = false
+    else submitting.value = false
   }
+}
+
+function saveDraft() {
+  saveItem('草稿')
+}
+
+function submitItem() {
+  saveItem('上架')
 }
 </script>
 
@@ -114,10 +159,16 @@ async function submitItem() {
           <template #header>多图上传</template>
           <el-upload
             v-model:file-list="fileList"
+            action="/api/files/images"
+            :headers="uploadHeaders"
             drag
             multiple
+            :limit="9"
             list-type="picture-card"
-            :auto-upload="false"
+            accept="image/*"
+            :before-upload="beforeImageUpload"
+            :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">拖拽图片到此处，或点击上传</div>
@@ -187,16 +238,10 @@ async function submitItem() {
               <el-checkbox label="线上担保" />
             </el-checkbox-group>
           </el-form-item>
-          <el-form-item label="发布状态">
-            <el-radio-group v-model="form.status">
-              <el-radio-button label="上架" />
-              <el-radio-button label="草稿" />
-            </el-radio-group>
-          </el-form-item>
         </el-card>
 
         <div class="sticky-submit">
-          <el-button size="large" @click="saveDraft">保存草稿</el-button>
+          <el-button size="large" :loading="savingDraft" :disabled="submitting" @click="saveDraft">保存草稿</el-button>
           <el-button type="primary" size="large" :loading="submitting" @click="submitItem">
             提交发布
           </el-button>

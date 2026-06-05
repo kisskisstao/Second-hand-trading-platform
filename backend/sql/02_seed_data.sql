@@ -39,6 +39,13 @@ ALTER TABLE chats AUTO_INCREMENT = 1;
 ALTER TABLE chat_messages AUTO_INCREMENT = 1;
 ALTER TABLE purchases AUTO_INCREMENT = 1;
 ALTER TABLE exchanges AUTO_INCREMENT = 1;
+ALTER TABLE wanted_posts AUTO_INCREMENT = 1;
+ALTER TABLE swap_requests AUTO_INCREMENT = 1;
+ALTER TABLE reports AUTO_INCREMENT = 1;
+ALTER TABLE disputes AUTO_INCREMENT = 1;
+ALTER TABLE notifications AUTO_INCREMENT = 1;
+ALTER TABLE announcements AUTO_INCREMENT = 1;
+ALTER TABLE files AUTO_INCREMENT = 1;
 
 INSERT INTO admin_users (id, username, password_hash, role, status, last_login_at) VALUES
 (1, 'admin', 'sha256$ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78', 'SUPER_ADMIN', 'NORMAL', NULL)

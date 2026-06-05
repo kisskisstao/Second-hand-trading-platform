@@ -36,7 +36,6 @@ export const adminOrders = []
 export const adminSwapRequests = []
 export const adminDisputes = []
 export const adminReports = []
-export const announcements = []
 
 export const sensitiveWords = [
   '私下转账',

@@ -26,6 +26,8 @@ spring:
       max-request-size: 50MB
 
 app:
+  upload:
+    dir: uploads
   jwt:
     secret: second-hand-trading-platform-local-dev-secret-change-me
     expire-minutes: 120

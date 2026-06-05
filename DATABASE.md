@@ -567,6 +567,8 @@ password: root
 
 平台公告表。
 
+初始化脚本会清空该表。管理员后台新增、保存草稿、发布和删除公告都会真实写入或删除 `announcements`。
+
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | id | BIGINT PK AI | 公告 ID |
@@ -618,6 +620,8 @@ password: root
 ### files
 
 上传文件表。
+
+商品发布页上传图片时，后端把文件保存到 `app.upload.dir/images`，默认 `uploads/images`，并在本表记录访问地址 `/api/files/images/{storage_key}`。初始化脚本会清空 `files` 表；本地磁盘上的旧上传文件如需清理，可手动删除 `uploads/images`。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |

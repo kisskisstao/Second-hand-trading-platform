@@ -28,6 +28,7 @@
   - `GET /api/items`
   - `GET /api/items/{itemId}`
   - `GET /api/items/{itemId}/comments`
+  - `GET /api/files/images/{storageKey}`
 - `/api/admin/**` 需要 `ADMIN` JWT。
 - 其他受保护接口需要 `USER` JWT。
 - 拦截器会写入 `authType`、`authId`、`authAccount`、`authRole`。
@@ -53,7 +54,8 @@
 - `AuthService`：注册、普通用户登录、管理员登录。
 - `JwtService`：JWT 签发、解析和校验。
 - `UserService`：当前用户、我的发布、我的收藏、用户评价。
-- `ItemService`：分类、商品筛选分页、商品发布、收藏、留言、图片 URL。
+- `ItemService`：分类、商品筛选分页、商品发布、收藏、留言、商品图片关联。
+- `FileStorageService`：商品图片上传落盘、`files` 表记录和公开图片读取。
 - `TradeWorkflowService`：订单、聊天。
 - `BazaarService`：求购、置换和匹配推荐。
 - `AdminService`：后台看板、举报、纠纷、设置、公告。
@@ -131,7 +133,8 @@ POST /api/items
 
 - 需要 `USER` JWT。
 - 使用当前登录用户 ID 作为 `seller_id`。
-- 如果前端没有传图片 URL，后端使用已有图片作为默认封面。
+- 上架商品写入 `ON_SALE`，草稿写入 `DRAFT`。
+- 如果前端没有传图片 URL，后端不再复用旧图片；前端使用兜底图展示。
 
 ### 3. 我的发布
 
@@ -142,6 +145,8 @@ GET /api/users/me/items
 ```
 
 已改为按当前 JWT 用户 ID 查询 `items.seller_id`。
+
+当前个人中心会按 `ON_SALE`、`REMOVED`、`SOLD/RESERVED`、`DRAFT` 分栏展示，草稿可重新发布上架或删除。
 
 ### 4. 收藏
 
@@ -187,9 +192,9 @@ fronted/src/services/normalizers.js
 已切换真实接口：
 
 - `SearchResultsView.vue`：商品列表调用 `itemApi.list`。
-- `PublishItemView.vue`：发布商品调用 `itemApi.create`。
+- `PublishItemView.vue`：图片上传调用 `/api/files/images`，发布商品和保存草稿都调用 `itemApi.create`。
 - `ItemDetailView.vue`：详情、收藏、留言调用真实接口。
-- `ProfileCenterView.vue`：我的发布、我的收藏调用真实接口。
+- `ProfileCenterView.vue`：我的发布按状态分栏展示，草稿、下架和收藏调用真实接口。
 - `ProductListItem.vue`、`ProductGridCard.vue`：修复价格显示。
 
 ## 文档同步
@@ -245,7 +250,6 @@ npm run build
 
 ## 当前剩余边界
 
-- 图片上传仍未接真实文件存储；当前发布商品接收图片 URL，没有 URL 时使用已有图片作为默认封面。
 - 商品修改仍是成功占位。
 - 后台分类管理仍未真实写库。
 - JWT 暂未实现 refresh token、黑名单或主动失效机制。
@@ -610,6 +614,15 @@ PATCH /api/swap-requests/{requestId}/cancel
 - `fronted/src/App.vue`：管理员登录后在顶部“个人中心”旁显示“数据后台”入口，跳转 `/admin`。
 - 普通用户不显示“数据后台”入口。
 - `README.md` 已补充该入口说明和从零运行步骤。
+
+## 本次追加更新：发布草稿、图片上传和后台公告真实化
+
+- `PublishItemView.vue`：保存草稿真实创建 `DRAFT` 商品并跳转个人中心草稿分栏；提交发布固定创建 `ON_SALE` 商品并跳公开详情。
+- `ProfileCenterView.vue`：我的发布按上架、下架、已出、草稿分栏展示；草稿和已下架商品可重新上架或删除。
+- `FileStorageService`、`FileController`：图片真实保存到 `uploads/images`，`files` 表记录 `/api/files/images/{storageKey}`，图片读取接口公开可访问。
+- `ItemService`：商品创建不再把数据库第一张旧图作为默认封面；没有传图片时不写 `item_images`。
+- `AdminNoticesView.vue`、`AdminService`：后台公告列表、新增、编辑、发布、删除接入 `announcements` 表，不再读取实例通知数据。
+- `backend/sql/02_seed_data.sql`：补充重置 `files`、`announcements`、`notifications` 等业务表自增。
 
 ### 验证结果
 

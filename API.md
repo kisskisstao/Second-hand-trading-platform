@@ -8,6 +8,7 @@
 - 管理员默认 1 个：`admin/admin123456`。
 - 商品默认 0 条；初始化会清空演示商品，后续由注册用户发布，或由管理员后台代指定普通用户新增。
 - 普通用户、订单、聊天、求购、置换、举报、纠纷、通知、公告等演示业务数据默认清空。
+- `files` 和 `announcements` 初始化为空，商品图片和后台公告只来自真实上传或后台新增。
 - 收藏、留言、订单、聊天、求购、置换初始化为空，用户操作后会真实写入对应业务表。
 - 本轮新增表 `purchases`、`exchanges` 已通过 `backend/sql/03_add_purchases_exchanges.sql` 在本地数据库创建完成。
 - 支付默认关闭真实收款；配置真实支付宝或微信商户参数后才会发起真实下单。
@@ -100,6 +101,7 @@ GET /api/categories
 GET /api/items
 GET /api/items/{itemId}
 GET /api/items/{itemId}/comments
+GET /api/files/images/{storageKey}
 GET /api/purchases
 GET /api/purchases/{purchaseId}/matches
 GET /api/exchanges
@@ -400,13 +402,18 @@ GET /api/items?page=1&pageSize=10&keyword=iPad&campus=东校区&sort=price_asc
 
 `GET /api/items/{itemId}`
 
-公开接口，返回指定商品详情。商品 ID 不存在时返回统一 404 响应。
+公开接口，返回指定上架商品详情。商品 ID 不存在、已删除，或状态为 `DRAFT` / `REMOVED` / `SOLD` 时返回统一 404 响应。
 
 ### 发布商品
 
 `POST /api/items`
 
-需要 `USER` JWT。真实写入 `items`，并为图片写入 `item_images` 和 `files`。如果前端没有传图片 URL，后端会使用当前已有图片作为默认封面。
+需要 `USER` JWT。真实写入 `items`，并把请求中的图片 URL 写入 `item_images`。发布页图片应先调用 `POST /api/files/images` 上传，拿到 `/api/files/images/{storageKey}` 后再作为 `imageUrls` 传入。没有传图片时后端不再复用旧图片，前端显示本地兜底图。
+
+状态说明：
+
+- `status: "上架"` 或不传：写入 `items.status = 'ON_SALE'`，会进入公开商品列表和详情页。
+- `status: "草稿"`：写入 `items.status = 'DRAFT'`，只会在当前用户个人中心“我的发布 > 草稿”展示，公开详情接口返回 404。
 
 请求示例：
 
@@ -842,7 +849,30 @@ PATCH /api/swap-requests/{requestId}/cancel
 
 `POST /api/files/images`
 
-需要 `USER` JWT。当前返回 `files` 表第一张图片 URL，尚未接真实上传存储。
+需要 `USER` JWT。真实保存图片到后端本地目录 `app.upload.dir/images`，默认是 `uploads/images`，并写入 `files` 表。
+
+响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "fileId": 1,
+    "filename": "book.jpg",
+    "storageKey": "c5014562-eab0-4715-b061-a34b645afc10.jpg",
+    "url": "/api/files/images/c5014562-eab0-4715-b061-a34b645afc10.jpg",
+    "sizeBytes": 128000,
+    "contentType": "image/jpeg"
+  }
+}
+```
+
+### 读取图片
+
+`GET /api/files/images/{storageKey}`
+
+公开接口。商品图片使用该 URL，浏览器可直接加载，不需要额外携带 JWT。
 
 ## 管理后台接口
 
@@ -941,7 +971,8 @@ DELETE /api/admin/notices/{noticeId}
 - 后台商品重新上架真实更新 `items.status = 'ON_SALE'`。
 - 后台商品删除真实软删除 `items.deleted = 1`。
 - 后台新增商品需要传 `sellerId`，后续买家咨询会按该商品 `seller_id` 与真实卖家建聊。
-- 用户禁用、分类管理、举报/纠纷处理、公告管理等仍有部分占位。
+- 后台公告新增、编辑、发布和删除真实写入 `announcements`。
+- 用户禁用、分类管理、举报/纠纷处理、系统设置等仍有部分占位。
 
 ## 服务层拆分
 
@@ -952,7 +983,8 @@ DELETE /api/admin/notices/{noticeId}
 - `AuthService`：注册和登录。
 - `JwtService`：JWT 签发与校验。
 - `UserService`：用户中心相关查询。
-- `ItemService`：分类、商品筛选分页、用户发布、后台代指定卖家新增商品、收藏、留言、上下架、软删除、图片 URL。
+- `ItemService`：分类、商品筛选分页、用户发布、后台代指定卖家新增商品、收藏、留言、上下架、软删除、商品图片关联。
+- `FileStorageService`：商品图片上传落盘、`files` 表记录和公开图片读取。
 - `TradeWorkflowService`：订单、聊天。
 - `BazaarService`：求购、置换和匹配推荐。
 - `AdminService`：后台统计、举报、纠纷、设置、公告。
