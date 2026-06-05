@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bell, House, Plus, QuestionFilled, Search, User } from '@element-plus/icons-vue'
+import { Bell, DataAnalysis, House, Plus, QuestionFilled, Search, User } from '@element-plus/icons-vue'
 import { useAuthStore } from './stores/auth'
 
 const router = useRouter()
@@ -66,6 +66,10 @@ function logout() {
             <RouterLink v-if="authStore.isLoggedIn" to="/profile">
               <el-icon><User /></el-icon>
               个人中心
+            </RouterLink>
+            <RouterLink v-if="authStore.isAdmin" to="/admin">
+              <el-icon><DataAnalysis /></el-icon>
+              数据后台
             </RouterLink>
             <el-button v-if="authStore.isLoggedIn" link type="primary" @click="logout">
               退出

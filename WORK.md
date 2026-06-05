@@ -605,6 +605,12 @@ PATCH /api/swap-requests/{requestId}/cancel
 
 - `README.md`、`API.md`、`DATABASE.md`、`WORK.md` 已同步后台数据大盘真实统计口径。
 
+## 本次追加更新：管理员前台数据后台入口
+
+- `fronted/src/App.vue`：管理员登录后在顶部“个人中心”旁显示“数据后台”入口，跳转 `/admin`。
+- 普通用户不显示“数据后台”入口。
+- `README.md` 已补充该入口说明和从零运行步骤。
+
 ### 验证结果
 
 后端：

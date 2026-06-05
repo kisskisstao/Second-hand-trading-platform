@@ -39,59 +39,115 @@ DATABASE.md              数据库设计说明
 WORK.md                  工作记录与后续建议
 ```
 
-## 初始化数据库
+## 本地运行步骤
+
+以下步骤按 Windows PowerShell 编写。项目目录名里有空格，建议每个命令都在对应目录执行，不要把长路径手动拼进命令里。
+
+### 1. 准备环境
+
+需要安装并能在终端访问：
+
+| 工具 | 建议版本 | 用途 |
+| --- | --- | --- |
+| JDK | 17 | 运行 Spring Boot 后端 |
+| MySQL | 8.x | 存储用户、商品、订单、聊天等数据 |
+| Node.js | `^20.19.0` 或 `>=22.12.0` | 运行 Vue/Vite 前端 |
+| npm | 随 Node 安装 | 安装前端依赖 |
+| Maven | 可选 | 如果 Maven Wrapper 不可用，可用本机 Maven |
+
+默认数据库连接配置在 `backend/src/main/resources/application.yml`：
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/second_hand_trade
+    username: root
+    password: root
+```
+
+如果你的 MySQL 用户名或密码不是 `root/root`，需要同步修改两个地方：
+
+- `backend/src/main/resources/application.yml`
+- `backend/scripts/init-database.ps1` 里的 `-uroot -proot`
+
+### 2. 初始化数据库
+
+先启动本机 MySQL 服务，并确认 `mysql` 命令已加入 `PATH`。然后在项目根目录执行：
 
 ```powershell
 cd backend
 .\scripts\init-database.ps1
+cd ..
 ```
 
-脚本会执行：
+脚本会依次执行：
 
 ```text
 backend/sql/01_create_tables.sql
 backend/sql/02_seed_data.sql
 ```
 
-初始化后建议检查：
+说明：
 
-```sql
-SELECT COUNT(*) FROM users;
-SELECT COUNT(*) FROM admin_users;
-SELECT COUNT(*) FROM items;
-SELECT COUNT(*) FROM orders;
-SELECT COUNT(*) FROM chats;
-SELECT COUNT(*) FROM payments;
-SELECT COUNT(*) FROM purchases;
-SELECT COUNT(*) FROM exchanges;
-```
+- `01_create_tables.sql` 会创建 `second_hand_trade` 数据库和所有表。
+- `02_seed_data.sql` 会清空普通用户、商品、订单、聊天等业务数据，只保留管理员账号、分类、敏感词和系统配置。
+- 初始化后商品默认是 0 条，后续由普通用户发布，或管理员后台为指定普通用户新增。
 
-预期结果：普通用户 0，管理员 1，商品 0，订单 0，聊天 0，支付单 0，求购 0，置换 0。
-
-如果已有数据库不想重建，只创建本轮新增表：
+初始化后可以检查数据量：
 
 ```powershell
-mysql -uroot -proot --default-character-set=utf8mb4 --binary-mode < backend/sql/03_add_purchases_exchanges.sql
+mysql -uroot -proot --default-character-set=utf8mb4 -D second_hand_trade -e "SELECT (SELECT COUNT(*) FROM users) AS users_count, (SELECT COUNT(*) FROM admin_users) AS admins_count, (SELECT COUNT(*) FROM categories) AS categories_count, (SELECT COUNT(*) FROM items) AS items_count, (SELECT COUNT(*) FROM orders) AS orders_count, (SELECT COUNT(*) FROM chats) AS chats_count;"
 ```
 
-本轮已执行该增量脚本，当前 `purchases` 和 `exchanges` 表均已创建，数据量为 0。
+预期结果：
 
-## 启动项目
+```text
+users_count=0
+admins_count=1
+categories_count=6
+items_count=0
+orders_count=0
+chats_count=0
+```
 
-启动后端：
+如果只想手动执行 SQL，也可以用：
+
+```powershell
+mysql -uroot -proot --default-character-set=utf8mb4 --binary-mode < backend/sql/01_create_tables.sql
+mysql -uroot -proot --default-character-set=utf8mb4 --binary-mode < backend/sql/02_seed_data.sql
+```
+
+### 3. 启动后端
+
+打开一个新的 PowerShell 窗口，在项目根目录执行：
 
 ```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-后端地址：
+如果 Maven Wrapper 在你的环境不可用，可以安装 Maven 后执行：
+
+```powershell
+cd backend
+mvn spring-boot:run
+```
+
+后端启动成功后地址为：
 
 ```text
 http://127.0.0.1:8080
 ```
 
-启动前端：
+可以访问健康检查：
+
+```powershell
+curl.exe http://127.0.0.1:8080/api/health
+```
+
+### 4. 启动前端
+
+再打开一个新的 PowerShell 窗口，在项目根目录执行：
 
 ```powershell
 cd fronted
@@ -99,20 +155,30 @@ npm install
 npm run dev
 ```
 
-前端地址：
+前端启动成功后访问：
 
 ```text
 http://127.0.0.1:5173
 ```
 
-## 登录说明
+前端 Vite 已配置代理：
+
+```text
+/api -> http://127.0.0.1:8080
+```
+
+所以本地开发时前端会自动把接口请求转发到后端。
+
+### 5. 登录和录入数据
 
 普通用户：
 
 - 数据库默认没有普通用户。
-- 先在前端注册，再使用注册的学号或邮箱和密码登录。
+- 先打开 `http://127.0.0.1:5173/register` 注册。
+- 再使用注册的学号或邮箱和密码登录。
 - 未登录时不保留也不显示“小张同学”等固定实例用户。
 - 登录后个人中心展示后端返回的真实用户信息。
+- 登录后可发布商品、收藏、留言、咨询、创建订单。
 
 管理员：
 
@@ -121,6 +187,58 @@ http://127.0.0.1:5173
 密码：admin123456
 入口：http://127.0.0.1:5173/admin
 ```
+
+管理员后台可以：
+
+- 查看数据库实时统计的数据大盘。
+- 查看用户、商品、订单等真实表数据。
+- 为指定普通用户新增商品。
+- 下架、重新上架或删除商品。
+- 管理员登录后，前台顶部“个人中心”旁会显示“数据后台”入口；普通用户不显示该入口。
+
+建议测试流程：
+
+1. 注册普通用户 A，并登录发布一个商品。
+2. 注册普通用户 B，打开 A 的商品详情，点击“立即咨询”。
+3. A 和 B 会进入按 `items.seller_id` 创建的真实聊天会话。
+4. 使用管理员账号进入后台，查看数据大盘和商品管理是否同步变化。
+
+### 6. 常用验证命令
+
+后端测试：
+
+```powershell
+cd backend
+.\mvnw.cmd test
+```
+
+如果 Maven Wrapper 不可用：
+
+```powershell
+cd backend
+mvn test
+```
+
+前端构建：
+
+```powershell
+cd fronted
+npm run build
+```
+
+数据库快速检查：
+
+```powershell
+mysql -uroot -proot --default-character-set=utf8mb4 -D second_hand_trade -e "SELECT COUNT(*) AS users FROM users; SELECT COUNT(*) AS items FROM items; SELECT COUNT(*) AS orders FROM orders; SELECT COUNT(*) AS chats FROM chats;"
+```
+
+### 7. 常见问题
+
+- `mysql command was not found`：MySQL 未加入 `PATH`，把 MySQL `bin` 目录加入环境变量，或使用完整路径执行 `mysql.exe`。
+- `Access denied for user 'root'`：数据库密码不是 `root`，修改 `application.yml` 和 `init-database.ps1`。
+- 后端启动失败并提示无法连接数据库：确认 MySQL 已启动，且 `second_hand_trade` 已初始化。
+- 前端页面请求失败：确认后端已在 `8080` 端口启动，前端开发服务器已在 `5173` 端口启动。
+- 前端构建出现 third-party pure annotation 或 chunk size warning：这是 Vite/Rolldown 对依赖和大包的警告，不影响本地运行。
 
 ## JWT 与权限
 
@@ -157,7 +275,7 @@ Authorization: Bearer <jwt>
 - 订单页：查询真实订单，支持接单、取消、完成和创建支付单。
 - 聊天页：查询真实会话和消息，发送消息写入数据库；买家咨询商品时按该商品 `seller_id` 精确进入卖家会话。
 - 求购/置换广场：求购列表、发布求购、置换列表从真实接口读取；匹配推荐由后端按分类、校区、预算和关键词打分。
-- 管理后台：商品、分类、数据大盘统计同步当前数据库；管理员可为指定普通用户新增商品，商品下架/删除真实写库，订单会随真实交易同步展示。
+- 管理后台：商品、分类、数据大盘统计同步当前数据库；管理员登录后前台顶部显示“数据后台”入口，可为指定普通用户新增商品，商品下架/删除真实写库，订单会随真实交易同步展示。
 
 ## 后端服务拆分
 
@@ -193,23 +311,7 @@ app:
 - 如果使用平台商户号，钱先进入平台商户结算账户，再由平台分账或线下结算给卖家。
 - 如果要让钱直接进卖家账户，需要每个卖家绑定自己的商户或收款身份，并补直连或分账流程。
 
-## 验证命令
-
-后端测试：
-
-```powershell
-cd backend
-.\mvnw.cmd test
-```
-
-前端构建：
-
-```powershell
-cd fronted
-npm run build
-```
-
-本次验证结果：
+## 最近验证结果
 
 - 后端 `mvn test` 通过。
 - 前端 `npm run build` 通过。
