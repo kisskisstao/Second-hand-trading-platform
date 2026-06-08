@@ -66,7 +66,7 @@ spring:
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/second_hand_trade
     username: root
-    password: root
+    password: 123456
 ```
 
 商品图片默认保存目录也在同一个文件中配置：
@@ -77,10 +77,10 @@ app:
     dir: uploads
 ```
 
-如果你的 MySQL 用户名或密码不是 `root/root`，需要同步修改两个地方：
+如果你的 MySQL 用户名或密码不是 `root/123456`，需要同步修改两个地方：
 
 - `backend/src/main/resources/application.yml`
-- `backend/scripts/init-database.ps1` 里的 `-uroot -proot`
+- 执行 `backend/scripts/init-database.ps1` 时传入 `-MysqlUser` 和 `-MysqlPassword`
 
 ### 2. 初始化数据库
 
@@ -89,6 +89,14 @@ app:
 ```powershell
 cd backend
 .\scripts\init-database.ps1
+cd ..
+```
+
+如果你的数据库密码不是默认的 `123456`，可以这样执行：
+
+```powershell
+cd backend
+.\scripts\init-database.ps1 -MysqlUser root -MysqlPassword 你的密码
 cd ..
 ```
 
@@ -108,7 +116,7 @@ backend/sql/02_seed_data.sql
 初始化后可以检查数据量：
 
 ```powershell
-mysql -uroot -proot --default-character-set=utf8mb4 -D second_hand_trade -e "SELECT (SELECT COUNT(*) FROM users) AS users_count, (SELECT COUNT(*) FROM admin_users) AS admins_count, (SELECT COUNT(*) FROM categories) AS categories_count, (SELECT COUNT(*) FROM items) AS items_count, (SELECT COUNT(*) FROM orders) AS orders_count, (SELECT COUNT(*) FROM chats) AS chats_count;"
+mysql -uroot -p123456 --default-character-set=utf8mb4 -D second_hand_trade -e "SELECT (SELECT COUNT(*) FROM users) AS users_count, (SELECT COUNT(*) FROM admin_users) AS admins_count, (SELECT COUNT(*) FROM categories) AS categories_count, (SELECT COUNT(*) FROM items) AS items_count, (SELECT COUNT(*) FROM orders) AS orders_count, (SELECT COUNT(*) FROM chats) AS chats_count;"
 ```
 
 预期结果：
@@ -125,8 +133,8 @@ chats_count=0
 如果只想手动执行 SQL，也可以用：
 
 ```powershell
-mysql -uroot -proot --default-character-set=utf8mb4 --binary-mode < backend/sql/01_create_tables.sql
-mysql -uroot -proot --default-character-set=utf8mb4 --binary-mode < backend/sql/02_seed_data.sql
+mysql -uroot -p123456 --default-character-set=utf8mb4 --binary-mode < backend/sql/01_create_tables.sql
+mysql -uroot -p123456 --default-character-set=utf8mb4 --binary-mode < backend/sql/02_seed_data.sql
 ```
 
 ### 3. 启动后端
@@ -243,13 +251,13 @@ npm run build
 数据库快速检查：
 
 ```powershell
-mysql -uroot -proot --default-character-set=utf8mb4 -D second_hand_trade -e "SELECT COUNT(*) AS users FROM users; SELECT COUNT(*) AS items FROM items; SELECT COUNT(*) AS orders FROM orders; SELECT COUNT(*) AS chats FROM chats;"
+mysql -uroot -p123456 --default-character-set=utf8mb4 -D second_hand_trade -e "SELECT COUNT(*) AS users FROM users; SELECT COUNT(*) AS items FROM items; SELECT COUNT(*) AS orders FROM orders; SELECT COUNT(*) AS chats FROM chats;"
 ```
 
 ### 7. 常见问题
 
 - `mysql command was not found`：MySQL 未加入 `PATH`，把 MySQL `bin` 目录加入环境变量，或使用完整路径执行 `mysql.exe`。
-- `Access denied for user 'root'`：数据库密码不是 `root`，修改 `application.yml` 和 `init-database.ps1`。
+- `Access denied for user 'root'`：数据库密码不是 `123456`，修改 `application.yml`，初始化时用 `-MysqlPassword` 传入真实密码。
 - 后端启动失败并提示无法连接数据库：确认 MySQL 已启动，且 `second_hand_trade` 已初始化。
 - 前端页面请求失败：确认后端已在 `8080` 端口启动，前端开发服务器已在 `5173` 端口启动。
 - 前端构建出现 third-party pure annotation 或 chunk size warning：这是 Vite/Rolldown 对依赖和大包的警告，不影响本地运行。

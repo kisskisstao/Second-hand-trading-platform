@@ -1,3 +1,8 @@
+param(
+  [string] $MysqlUser = "root",
+  [string] $MysqlPassword = "123456"
+)
+
 $ErrorActionPreference = "Stop"
 
 $backendRoot = Split-Path -Parent $PSScriptRoot
@@ -17,7 +22,7 @@ function Invoke-MysqlFile {
   )
 
   $mysqlPath = (Get-Command $mysqlCommand).Source
-  $command = "`"$mysqlPath`" -uroot -proot --default-character-set=utf8mb4 --binary-mode < `"$SqlFile`""
+  $command = "`"$mysqlPath`" -u$MysqlUser -p$MysqlPassword --default-character-set=utf8mb4 --binary-mode < `"$SqlFile`""
 
   cmd.exe /c $command
 
