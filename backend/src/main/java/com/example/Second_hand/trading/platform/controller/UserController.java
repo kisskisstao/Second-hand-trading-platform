@@ -52,6 +52,12 @@ public class UserController {
 		return ApiResponse.success(PageResponse.of(userService.notifications(authId), 1, 10));
 	}
 
+	@GetMapping("/me/comments")
+	public ApiResponse<PageResponse<Map<String, Object>>> myComments(
+			@RequestAttribute("authId") Long authId) {
+		return ApiResponse.success(PageResponse.of(userService.comments(authId), 1, 10));
+	}
+
 	@GetMapping("/{userId}/reviews")
 	public ApiResponse<PageResponse<Map<String, Object>>> reviews(@PathVariable Integer userId) {
 		return ApiResponse.success(PageResponse.of(userService.reviews(userId), 1, 10));

@@ -1,9 +1,9 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ProductGridCard from '../../components/product/ProductGridCard.vue'
-import { itemApi, swapApi, wantedApi } from '../../services/api'
+import { itemApi, swapApi, userApi, wantedApi } from '../../services/api'
 import { normalizeItemPage } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
@@ -14,7 +14,17 @@ const activeTab = ref(route.meta.tab || 'wanted')
 const wantedItems = ref([])
 const exchanges = ref([])
 const seasonProducts = ref([])
+const myProducts = ref([])
+const swapDialogVisible = ref(false)
+const swapForm = ref({
+  itemId: '',
+  expectedTitle: '',
+  description: '',
+  campus: '',
+})
 const loading = ref(false)
+
+const swappableProducts = computed(() => myProducts.value.filter((product) => product.status === 'ON_SALE'))
 
 watch(
   () => route.meta.tab,
@@ -74,6 +84,47 @@ function publishWanted() {
   }).catch(() => {})
 }
 
+function openSwapDialog() {
+  if (!requireLogin('发布置换')) return
+  if (swappableProducts.value.length === 0) {
+    ElMessage.warning('请先发布至少一件在售商品，再发起置换')
+    router.push('/items/publish')
+    return
+  }
+  swapForm.value = {
+    itemId: swappableProducts.value[0]?.id || '',
+    expectedTitle: '',
+    description: '',
+    campus: authStore.user?.campus || swappableProducts.value[0]?.campus || '校本部',
+  }
+  swapDialogVisible.value = true
+}
+
+async function publishSwap() {
+  if (!swapForm.value.itemId) {
+    ElMessage.warning('请选择用于置换的商品')
+    return
+  }
+  if (!swapForm.value.expectedTitle.trim()) {
+    ElMessage.warning('请填写想换的物品')
+    return
+  }
+  try {
+    await swapApi.create({
+      itemId: swapForm.value.itemId,
+      expectedTitle: swapForm.value.expectedTitle.trim(),
+      description: swapForm.value.description.trim(),
+      campus: swapForm.value.campus || authStore.user?.campus || '校本部',
+    })
+    ElMessage.success('置换已发布')
+    swapDialogVisible.value = false
+    activeTab.value = 'swap'
+    await loadBazaar()
+  } catch (error) {
+    ElMessage.error(error.message || '发布置换失败')
+  }
+}
+
 function contactUser(item) {
   if (!requireLogin('联系发布人')) return
   ElMessage.success(`已打开与 ${item.user} 的咨询会话`)
@@ -83,14 +134,18 @@ function contactUser(item) {
 async function loadBazaar() {
   loading.value = true
   try {
-    const [wantedResponse, exchangeResponse, itemResponse] = await Promise.all([
+    const [wantedResponse, exchangeResponse, itemResponse, myItemsResponse] = await Promise.all([
       wantedApi.list({ page: 1, pageSize: 20 }),
       swapApi.list({ page: 1, pageSize: 20 }),
       itemApi.list({ page: 1, pageSize: 6, sort: 'latest' }),
+      authStore.isLoggedIn
+        ? userApi.getMyItems({ page: 1, pageSize: 100 })
+        : Promise.resolve({ data: { list: [] } }),
     ])
     wantedItems.value = normalizePurchases(wantedResponse)
     exchanges.value = normalizeExchanges(exchangeResponse)
     seasonProducts.value = normalizeItemPage(itemResponse).list
+    myProducts.value = normalizeItemPage(myItemsResponse).list
   } catch (error) {
     ElMessage.error(error.message || '广场数据加载失败')
   } finally {
@@ -122,9 +177,25 @@ function normalizeExchanges(response = {}) {
       campus: item.campus,
       user: item.user?.nickname || `用户${item.userId || ''}`,
       status: item.status,
+      itemId: item.itemId,
       recommendedItems: item.recommendedItems || [],
     }))
     : []
+}
+
+async function showExchangeMatches(exchange) {
+  try {
+    const response = await swapApi.matches(exchange.id)
+    const rows = response.data || response || []
+    if (!Array.isArray(rows) || rows.length === 0) {
+      ElMessage.info('暂未找到匹配商品')
+      return
+    }
+    const text = rows.slice(0, 5).map((item) => `《${item.title}》 ${item.campus || ''}`).join('\n')
+    ElMessageBox.alert(text, '推荐匹配商品', { confirmButtonText: '知道了' })
+  } catch (error) {
+    ElMessage.error(error.message || '匹配商品加载失败')
+  }
 }
 
 function budgetText(item) {
@@ -176,6 +247,7 @@ onMounted(loadBazaar)
             <p class="section-kicker">支持置换</p>
             <h2>以物换物专区</h2>
           </div>
+          <el-button type="primary" @click="openSwapDialog">发布置换</el-button>
         </div>
         <div class="wanted-grid">
           <el-card v-for="exchange in exchanges" :key="exchange.id" shadow="hover">
@@ -184,7 +256,10 @@ onMounted(loadBazaar)
             <p>交易校区：{{ exchange.campus || '不限' }}</p>
             <div class="card-footer-line">
               <span>{{ exchange.user }}</span>
-              <el-tag type="warning" effect="plain">置换中</el-tag>
+              <div class="swap-card-actions">
+                <el-button text type="primary" @click="showExchangeMatches(exchange)">看匹配</el-button>
+                <el-tag type="warning" effect="plain">置换中</el-tag>
+              </div>
             </div>
           </el-card>
           <el-empty v-if="exchanges.length === 0" description="暂无置换" />
@@ -203,5 +278,38 @@ onMounted(loadBazaar)
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-model="swapDialogVisible" title="发布以物换物" width="520px">
+      <el-form label-width="96px">
+        <el-form-item label="我的商品">
+          <el-select v-model="swapForm.itemId" placeholder="选择要拿来置换的商品" style="width: 100%">
+            <el-option
+              v-for="product in swappableProducts"
+              :key="product.id"
+              :label="`${product.title} · ￥${product.price}`"
+              :value="product.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="想换什么">
+          <el-input v-model="swapForm.expectedTitle" placeholder="例如：机械键盘、平板支架" />
+        </el-form-item>
+        <el-form-item label="校区">
+          <el-input v-model="swapForm.campus" placeholder="例如：校本部" />
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input
+            v-model="swapForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="补充成色、可接受范围、交易时间等"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="swapDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="publishSwap">发布</el-button>
+      </template>
+    </el-dialog>
   </main>
 </template>

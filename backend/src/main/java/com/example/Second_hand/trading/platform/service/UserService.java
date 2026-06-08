@@ -52,6 +52,27 @@ public class UserService {
 				""", userId);
 	}
 
+	public List<Map<String, Object>> comments(Long userId) {
+		if (userId == null) {
+			return List.of();
+		}
+		return jdbcTemplate.queryForList("""
+				SELECT c.id AS commentId, c.item_id AS itemId, i.title AS itemTitle,
+				  c.user_id AS userId, commenter.nickname AS userName,
+				  i.seller_id AS sellerId, c.parent_id AS parentId,
+				  c.content, c.created_at AS createdAt,
+				  CASE WHEN c.user_id = ? THEN 'SENT' ELSE 'RECEIVED' END AS relation
+				FROM item_comments c
+				LEFT JOIN items i ON i.id = c.item_id
+				LEFT JOIN users commenter ON commenter.id = c.user_id
+				WHERE c.deleted = 0
+				  AND i.deleted = 0
+				  AND (c.user_id = ? OR i.seller_id = ?)
+				ORDER BY c.created_at DESC
+				LIMIT 100
+				""", userId, userId, userId);
+	}
+
 	public List<Map<String, Object>> reviews(Integer userId) {
 		if (userId == null) {
 			return List.of();

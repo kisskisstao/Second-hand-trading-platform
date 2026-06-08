@@ -951,6 +951,59 @@ button {
   color: var(--text-muted);
 }
 
+.order-mini-list,
+.review-list,
+.profile-record-list {
+  display: grid;
+  gap: 14px;
+}
+
+.order-head-tags,
+.swap-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-order-body {
+  grid-template-columns: 110px 1fr 100px 150px;
+}
+
+.review-row,
+.profile-record-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px;
+}
+
+.review-row p,
+.profile-record-row p {
+  margin: 8px 0;
+  color: var(--text-muted);
+}
+
+.review-row small,
+.profile-record-row small {
+  color: var(--text-muted);
+}
+
+.profile-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-subsection-title {
+  color: var(--text-strong);
+  font-weight: 900;
+}
+
 .mini-order {
   display: grid;
   grid-template-columns: 96px 1fr auto;
@@ -1317,7 +1370,10 @@ button {
   }
 
   .product-list-item,
-  .profile-item-row {
+  .profile-item-row,
+  .profile-order-body,
+  .profile-record-row,
+  .review-row {
     grid-template-columns: 1fr;
   }
 
@@ -1333,6 +1389,10 @@ button {
 
   .profile-item-actions {
     flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .profile-record-actions {
     justify-content: flex-start;
   }
 }

@@ -3,8 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ProductListItem from '../../components/product/ProductListItem.vue'
-import { itemApi, userApi } from '../../services/api'
-import { normalizeItemPage } from '../../services/normalizers'
+import { itemApi, orderApi, reviewApi, swapApi, userApi, wantedApi } from '../../services/api'
+import { normalizeItemPage, normalizeOrder } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
@@ -15,6 +15,11 @@ const validItemStatusTabs = ['onSale', 'removed', 'sold', 'drafts']
 const activeItemStatus = ref(validItemStatusTabs.includes(route.query.itemStatus) ? route.query.itemStatus : 'onSale')
 const myProducts = ref([])
 const favoriteProducts = ref([])
+const myOrders = ref([])
+const myReviews = ref([])
+const myComments = ref([])
+const myWantedPosts = ref([])
+const mySwapRequests = ref([])
 const notifications = ref([])
 const loadingItems = ref(false)
 
@@ -23,7 +28,7 @@ const menuItems = [
   { key: 'orders', label: '我的订单' },
   { key: 'favorites', label: '我的收藏' },
   { key: 'notifications', label: '系统通知' },
-  { key: 'reviews', label: '我的评价' },
+  { key: 'reviews', label: '我的评价/评论' },
   { key: 'wanted', label: '我的求购' },
   { key: 'swap', label: '以物换物' },
   { key: 'privacy', label: '隐私设置' },
@@ -36,6 +41,7 @@ const privacy = ref({
 
 const title = computed(() => menuItems.find((item) => item.key === activeMenu.value)?.label)
 const currentUser = computed(() => authStore.user || {})
+const currentUserId = computed(() => currentUser.value.userId || currentUser.value.id)
 const displayName = computed(() => currentUser.value.nickname || currentUser.value.realName || currentUser.value.account)
 const avatarText = computed(() => displayName.value?.slice(0, 1) || '用')
 const onSaleProducts = computed(() => myProducts.value.filter((product) => product.status === 'ON_SALE'))
@@ -97,21 +103,110 @@ async function fetchUserItems() {
 
   loadingItems.value = true
   try {
-    const [itemsResponse, favoritesResponse] = await Promise.all([
+    const [itemsResponse, favoritesResponse, ordersResponse, reviewsResponse, commentsResponse, wantedResponses, swapResponses] = await Promise.all([
       userApi.getMyItems({ page: 1, pageSize: 100 }),
       userApi.getMyFavorites({ page: 1, pageSize: 100 }),
+      orderApi.list({ page: 1, pageSize: 100 }),
+      reviewApi.getUserReviews(currentUserId.value),
+      userApi.getMyComments({ page: 1, pageSize: 100 }),
+      Promise.all(['OPEN', 'CLOSED'].map((status) => wantedApi.list({ page: 1, pageSize: 100, status }))),
+      Promise.all(['OPEN', 'MATCHED', 'CANCELLED'].map((status) => swapApi.list({ page: 1, pageSize: 100, status }))),
     ])
     myProducts.value = normalizeItemPage(itemsResponse).list
     favoriteProducts.value = normalizeItemPage(favoritesResponse).list
+    myOrders.value = (ordersResponse.data?.list || []).map(normalizeOrder)
+    myReviews.value = normalizeReviews(reviewsResponse)
+    myComments.value = normalizeMyComments(commentsResponse)
+    myWantedPosts.value = wantedResponses.flatMap(normalizePurchases).filter(isMine)
+    mySwapRequests.value = swapResponses.flatMap(normalizeExchanges).filter(isMine)
     await fetchNotifications()
   } catch (error) {
     myProducts.value = []
     favoriteProducts.value = []
+    myOrders.value = []
+    myReviews.value = []
+    myComments.value = []
+    myWantedPosts.value = []
+    mySwapRequests.value = []
     notifications.value = []
     console.error(error)
   } finally {
     loadingItems.value = false
   }
+}
+
+function normalizeMyComments(response = {}) {
+  const rows = response.data?.list || response.data || response.list || []
+  return Array.isArray(rows)
+    ? rows.map((row) => ({
+      id: row.commentId || row.id,
+      itemId: row.itemId,
+      itemTitle: row.itemTitle || '商品',
+      userName: row.userName || `用户${row.userId || ''}`,
+      relation: row.relation || 'SENT',
+      content: row.content || '',
+      createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+    }))
+    : []
+}
+
+function normalizeReviews(response = {}) {
+  const rows = response.data || response
+  return Array.isArray(rows)
+    ? rows.map((row) => ({
+      id: row.reviewId || row.id,
+      orderId: row.orderId,
+      reviewerId: row.reviewerId,
+      targetUserId: row.targetUserId,
+      rating: Number(row.rating) || 0,
+      content: row.content || '',
+      createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+    }))
+    : []
+}
+
+function normalizePurchases(response = {}) {
+  const data = response.data || response
+  return Array.isArray(data.list)
+    ? data.list.map((row) => ({
+      id: row.purchaseId,
+      userId: row.userId,
+      title: row.title,
+      description: row.description || '',
+      campus: row.campus || '',
+      status: row.status || 'OPEN',
+      budget: budgetText(row),
+      createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+    }))
+    : []
+}
+
+function normalizeExchanges(response = {}) {
+  const data = response.data || response
+  return Array.isArray(data.list)
+    ? data.list.map((row) => ({
+      id: row.exchangeId,
+      userId: row.userId,
+      title: row.item?.title || '置换商品',
+      itemId: row.itemId,
+      expectedTitle: row.expectedTitle || '接受相近物品',
+      description: row.description || '',
+      campus: row.campus || '',
+      status: row.status || 'OPEN',
+      createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
+    }))
+    : []
+}
+
+function budgetText(row) {
+  if (row.budgetMin && row.budgetMax) return `￥${row.budgetMin} - ￥${row.budgetMax}`
+  if (row.budgetMax) return `￥${row.budgetMax} 以内`
+  if (row.budgetMin) return `￥${row.budgetMin} 以上`
+  return '面议'
+}
+
+function isMine(row) {
+  return String(row.userId) === String(currentUserId.value)
 }
 
 async function fetchNotifications() {
@@ -147,6 +242,149 @@ function statusType(status) {
   if (status === 'REMOVED') return 'danger'
   if (status === 'SOLD' || status === 'RESERVED') return 'info'
   return 'warning'
+}
+
+function orderStatusText(status) {
+  const map = {
+    PENDING: '待接单',
+    ACCEPTED: '待支付',
+    PAYING: '支付中',
+    PAID: '已支付',
+    COMPLETED: '已完成',
+    CANCELLED: '已取消',
+  }
+  return map[status] || status || '未知'
+}
+
+function orderStatusType(status) {
+  if (status === 'COMPLETED') return 'success'
+  if (status === 'CANCELLED') return 'info'
+  if (status === 'PENDING') return 'warning'
+  return ''
+}
+
+function exchangeStatusText(status) {
+  const map = {
+    OPEN: '置换中',
+    MATCHED: '已匹配',
+    CANCELLED: '已取消',
+    CLOSED: '已关闭',
+  }
+  return map[status] || status || '未知'
+}
+
+function isBuyer(order) {
+  return String(order.buyer?.userId) === String(currentUserId.value)
+}
+
+function isSeller(order) {
+  return String(order.seller?.userId) === String(currentUserId.value)
+}
+
+async function acceptOrder(order) {
+  try {
+    await orderApi.accept(order.id)
+    ElMessage.success('已接单')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '接单失败')
+  }
+}
+
+async function cancelOrder(order) {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写取消原因', '取消订单', {
+      confirmButtonText: '确认取消',
+      cancelButtonText: '返回',
+      inputPlaceholder: '例如：时间无法协调',
+    })
+    await orderApi.cancel(order.id, { reason: value || '用户取消' })
+    ElMessage.success('订单已取消')
+    await fetchUserItems()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.message || '取消失败')
+  }
+}
+
+async function completeOrder(order) {
+  try {
+    await orderApi.complete(order.id)
+    ElMessage.success('订单已完成')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '完成失败')
+  }
+}
+
+async function payOrder(order, provider) {
+  try {
+    const response = await orderApi.pay(order.id, { provider })
+    const payment = response.data
+    if (payment.paymentUrl) {
+      window.location.href = payment.paymentUrl
+      return
+    }
+    if (payment.qrUrl) {
+      ElMessageBox.alert(payment.qrUrl, `${provider} 支付二维码链接`, { confirmButtonText: '知道了' })
+    } else {
+      ElMessage.success('支付单已创建')
+    }
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '支付创建失败')
+  }
+}
+
+async function reviewOrder(order) {
+  try {
+    const { value: ratingValue } = await ElMessageBox.prompt('请填写 1-5 分', '评价订单', {
+      confirmButtonText: '下一步',
+      cancelButtonText: '取消',
+      inputValue: '5',
+      inputPattern: /^[1-5]$/,
+      inputErrorMessage: '评分只能是 1 到 5',
+    })
+    const { value: content } = await ElMessageBox.prompt('请填写评价内容', '评价订单', {
+      confirmButtonText: '提交评价',
+      cancelButtonText: '取消',
+      inputPlaceholder: '交易体验、商品情况等',
+    })
+    await orderApi.review(order.id, { rating: Number(ratingValue), content: content || '交易顺利' })
+    ElMessage.success('评价已提交')
+    await fetchUserItems()
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.message || '评价失败')
+  }
+}
+
+async function closeWanted(post) {
+  try {
+    await wantedApi.close(post.id)
+    ElMessage.success('求购已关闭')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '关闭求购失败')
+  }
+}
+
+async function cancelSwap(exchange) {
+  try {
+    await swapApi.cancel(exchange.id)
+    ElMessage.success('置换已取消')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '取消置换失败')
+  }
+}
+
+async function markSwapMatched(exchange) {
+  try {
+    await swapApi.accept(exchange.id)
+    ElMessage.success('置换已标记为匹配')
+    await fetchUserItems()
+  } catch (error) {
+    ElMessage.error(error.message || '标记匹配失败')
+  }
 }
 
 async function publishProduct(product) {
@@ -300,7 +538,68 @@ function viewProduct(product) {
           </div>
 
           <div v-else-if="activeMenu === 'orders'" class="order-mini-list">
-            <el-empty description="暂无订单" />
+            <el-card v-for="order in myOrders" :key="order.id" class="order-card" shadow="never">
+              <div class="order-head">
+                <span>订单号：{{ order.orderNo }}</span>
+                <div class="order-head-tags">
+                  <el-tag :type="isBuyer(order) ? 'success' : 'warning'" effect="plain">
+                    {{ isBuyer(order) ? '我买到的' : '我卖出的' }}
+                  </el-tag>
+                  <el-tag :type="orderStatusType(order.status)">{{ orderStatusText(order.status) }}</el-tag>
+                </div>
+              </div>
+              <div class="order-body profile-order-body">
+                <el-image :src="order.product.image" fit="cover" />
+                <div class="order-info">
+                  <h3>{{ order.product.title }}</h3>
+                  <p>{{ order.tradeMode }} · {{ order.createdAt }}</p>
+                  <p>买家：{{ order.buyer?.nickname || '-' }} · 卖家：{{ order.seller?.nickname || '-' }}</p>
+                  <strong>￥{{ order.amount }}</strong>
+                </div>
+                <div class="trade-code">
+                  <span>交易口令</span>
+                  <strong>{{ order.tradeCode || '-' }}</strong>
+                  <div class="qr-box">PAY</div>
+                </div>
+                <div class="order-actions">
+                  <el-button v-if="isSeller(order) && order.status === 'PENDING'" type="primary" @click="acceptOrder(order)">
+                    接单
+                  </el-button>
+                  <el-dropdown
+                    v-if="isBuyer(order) && ['PENDING', 'ACCEPTED', 'PAYING'].includes(order.status)"
+                    @command="payOrder(order, $event)"
+                  >
+                    <el-button type="success">去支付</el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="ALIPAY">支付宝</el-dropdown-item>
+                        <el-dropdown-item command="WECHAT">微信支付</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                  <el-button
+                    v-if="['ACCEPTED', 'PAID'].includes(order.status)"
+                    type="primary"
+                    plain
+                    @click="completeOrder(order)"
+                  >
+                    完成交易
+                  </el-button>
+                  <el-button
+                    v-if="isBuyer(order) && order.status === 'COMPLETED'"
+                    type="warning"
+                    plain
+                    @click="reviewOrder(order)"
+                  >
+                    评价
+                  </el-button>
+                  <el-button v-if="!['COMPLETED', 'CANCELLED'].includes(order.status)" @click="cancelOrder(order)">
+                    取消
+                  </el-button>
+                </div>
+              </div>
+            </el-card>
+            <el-empty v-if="myOrders.length === 0" description="暂无订单" />
           </div>
 
           <div v-else-if="activeMenu === 'favorites'" class="product-list">
@@ -321,15 +620,64 @@ function viewProduct(product) {
           </div>
 
           <div v-else-if="activeMenu === 'reviews'" class="review-list">
-            <el-empty description="暂无评价" />
+            <div class="profile-subsection-title">订单评价</div>
+            <div v-for="review in myReviews" :key="review.id" class="review-row">
+              <div>
+                <el-rate :model-value="review.rating" disabled />
+                <p>{{ review.content || '暂无评价内容' }}</p>
+                <small>订单：{{ review.orderId || '-' }} · {{ review.createdAt }}</small>
+              </div>
+            </div>
+            <el-empty v-if="myReviews.length === 0" description="暂无订单评价" />
+
+            <div class="profile-subsection-title">商品评论</div>
+            <div v-for="comment in myComments" :key="comment.id" class="review-row">
+              <div>
+                <strong>{{ comment.itemTitle }}</strong>
+                <p>{{ comment.content || '暂无评论内容' }}</p>
+                <small>
+                  {{ comment.relation === 'RECEIVED' ? '收到评论' : '我发表的评论' }}
+                  · {{ comment.userName }} · {{ comment.createdAt }}
+                </small>
+              </div>
+              <el-button text type="primary" @click="router.push(`/items/${comment.itemId}`)">查看商品</el-button>
+            </div>
+            <el-empty v-if="myComments.length === 0" description="暂无商品评论" />
           </div>
 
-          <div v-else-if="activeMenu === 'wanted'">
-            <el-empty description="暂未发布求购" />
+          <div v-else-if="activeMenu === 'wanted'" class="profile-record-list">
+            <div v-for="post in myWantedPosts" :key="post.id" class="profile-record-row">
+              <div>
+                <strong>{{ post.title }}</strong>
+                <p>{{ post.description || '暂无补充说明' }}</p>
+                <small>{{ post.campus || '不限校区' }} · {{ post.budget }} · {{ post.createdAt }}</small>
+              </div>
+              <div class="profile-record-actions">
+                <el-tag :type="post.status === 'OPEN' ? 'success' : 'info'">{{ exchangeStatusText(post.status) }}</el-tag>
+                <el-button v-if="post.status === 'OPEN'" plain @click="closeWanted(post)">关闭</el-button>
+              </div>
+            </div>
+            <el-empty v-if="myWantedPosts.length === 0" description="暂未发布求购" />
           </div>
 
-          <div v-else-if="activeMenu === 'swap'" class="product-list">
-            <el-empty description="暂无置换商品" />
+          <div v-else-if="activeMenu === 'swap'" class="profile-record-list">
+            <div v-for="exchange in mySwapRequests" :key="exchange.id" class="profile-record-row">
+              <div>
+                <strong>{{ exchange.title }}</strong>
+                <p>想换：{{ exchange.expectedTitle }}</p>
+                <small>{{ exchange.campus || '不限校区' }} · {{ exchange.createdAt }}</small>
+              </div>
+              <div class="profile-record-actions">
+                <el-tag :type="exchange.status === 'OPEN' ? 'warning' : 'info'">
+                  {{ exchangeStatusText(exchange.status) }}
+                </el-tag>
+                <el-button v-if="exchange.status === 'OPEN'" type="primary" plain @click="markSwapMatched(exchange)">
+                  标记匹配
+                </el-button>
+                <el-button v-if="exchange.status === 'OPEN'" plain @click="cancelSwap(exchange)">取消</el-button>
+              </div>
+            </div>
+            <el-empty v-if="mySwapRequests.length === 0" description="暂无置换商品" />
           </div>
 
           <div v-else class="privacy-list">

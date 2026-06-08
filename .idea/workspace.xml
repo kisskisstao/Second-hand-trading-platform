@@ -4,15 +4,43 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27ef6759-2525-465c-b4d2-023ada88b084" name="更改" comment="本次更新&#10;1. 用户评价体系&#10;      - 订单完成后，买家可对卖家评价。&#10;      - 支持 1-5 星评分和文字评价。&#10;      - 每个订单每个买家只能评价一次。&#10;      - 评价目标由后端根据订单卖家自动确定，防止前端伪造目标用户。&#10;      - 支持接口：&#10;          - POST /api/reviews&#10;          - POST /api/orders/{orderId}/reviews&#10;          - GET /api/reviews/user/{userId}&#10;          - GET /api/reviews/user/{userId}/stats&#10;          - GET /api/users/{userId}/reviews&#10;&#10;  2. 信用积分系统&#10;      - 用户初始信用分 100。&#10;      - 评价后自动调整卖家信用分：&#10;          - 4-5 星：+5 分&#10;          - 3 星：0 分&#10;          - 1-2 星：-10 分&#10;&#10;      - 信用分限制在 0-200 分。&#10;&#10;  3. 实时消息推送&#10;      - 新增 WebSocket + STOMP 推送能力。&#10;      - 支持订单通知、聊天消息、系统通知、平台广播。&#10;      - 前端通过 websocket.js 订阅：&#10;          - /user/queue/notifications&#10;          - /user/queue/messages&#10;          - /topic/broadcast&#10;&#10;  4. WebSocket 安全增强&#10;      - STOMP 连接必须携带 JWT。&#10;      - 只允许普通用户 token 连接。&#10;      - 限制客户端只能订阅允许的用户队列和广播主题。&#10;      - 禁止客户端直接通过 WebSocket SEND 写入消息，避免绕过 REST 鉴权。&#10;&#10;  5. 认证安全增强&#10;      - 新注册用户密码改为带盐 PBKDF2-HMAC-SHA256 哈希存储。&#10;      - 兼容旧的 sha256$ 密码哈希，避免已有账号无法登录。&#10;&#10;  6. 文档更新&#10;      - README 已同步更新上述功能、接口、安全规则和验证结果。" />
+    <list default="true" id="27ef6759-2525-465c-b4d2-023ada88b084" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.yml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="Git.Settings">
+    <excluded-from-favorite>
+      <branch-storage>
+        <map>
+          <entry type="LOCAL">
+            <value>
+              <list>
+                <branch-info repo="$PROJECT_DIR$" source="main" />
+              </list>
+            </value>
+          </entry>
+        </map>
+      </branch-storage>
+    </excluded-from-favorite>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;kisskisstao&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/kisskisstao/Second-hand-trading-platform.git&quot;,
+    &quot;accountId&quot;: &quot;0a7a6a97-8395-442a-bcaa-9188d97c8cd3&quot;
+  }
+}</component>
   <component name="KubernetesApiPersistence">{}</component>
   <component name="KubernetesApiProvider">{
   &quot;isMigrated&quot;: true
@@ -48,8 +76,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-jdk-9823dce3aa75-fbdcb00ec9e3-intellij.indexing.shared.core-IU-251.26094.121" />
-        <option value="bundled-js-predefined-d6986cc7102b-b26f3e71634d-JavaScript-IU-251.26094.121" />
+        <option value="bundled-python-sdk-2653e85de345-6d6dccd035ac-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.31033.139" />
       </set>
     </attachedChunks>
   </component>
@@ -65,6 +92,7 @@
       <workItem from="1780896230216" duration="1092000" />
       <workItem from="1780899624290" duration="641000" />
       <workItem from="1780901917735" duration="840000" />
+      <workItem from="1780903837463" duration="2187000" />
     </task>
     <task id="LOCAL-00001" summary="本次更新&#10;1. 用户评价体系&#10;      - 订单完成后，买家可对卖家评价。&#10;      - 支持 1-5 星评分和文字评价。&#10;      - 每个订单每个买家只能评价一次。&#10;      - 评价目标由后端根据订单卖家自动确定，防止前端伪造目标用户。&#10;      - 支持接口：&#10;          - POST /api/reviews&#10;          - POST /api/orders/{orderId}/reviews&#10;          - GET /api/reviews/user/{userId}&#10;          - GET /api/reviews/user/{userId}/stats&#10;          - GET /api/users/{userId}/reviews&#10;&#10;  2. 信用积分系统&#10;      - 用户初始信用分 100。&#10;      - 评价后自动调整卖家信用分：&#10;          - 4-5 星：+5 分&#10;          - 3 星：0 分&#10;          - 1-2 星：-10 分&#10;&#10;      - 信用分限制在 0-200 分。&#10;&#10;  3. 实时消息推送&#10;      - 新增 WebSocket + STOMP 推送能力。&#10;      - 支持订单通知、聊天消息、系统通知、平台广播。&#10;      - 前端通过 websocket.js 订阅：&#10;          - /user/queue/notifications&#10;          - /user/queue/messages&#10;          - /topic/broadcast&#10;&#10;  4. WebSocket 安全增强&#10;      - STOMP 连接必须携带 JWT。&#10;      - 只允许普通用户 token 连接。&#10;      - 限制客户端只能订阅允许的用户队列和广播主题。&#10;      - 禁止客户端直接通过 WebSocket SEND 写入消息，避免绕过 REST 鉴权。&#10;&#10;  5. 认证安全增强&#10;      - 新注册用户密码改为带盐 PBKDF2-HMAC-SHA256 哈希存储。&#10;      - 兼容旧的 sha256$ 密码哈希，避免已有账号无法登录。&#10;&#10;  6. 文档更新&#10;      - README 已同步更新上述功能、接口、安全规则和验证结果。">
       <option name="closed" value="true" />
@@ -74,7 +102,15 @@
       <option name="project" value="LOCAL" />
       <updated>1780902442875</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="本次更新&#10;1. 用户评价体系&#10;      - 订单完成后，买家可对卖家评价。&#10;      - 支持 1-5 星评分和文字评价。&#10;      - 每个订单每个买家只能评价一次。&#10;      - 评价目标由后端根据订单卖家自动确定，防止前端伪造目标用户。&#10;      - 支持接口：&#10;          - POST /api/reviews&#10;          - POST /api/orders/{orderId}/reviews&#10;          - GET /api/reviews/user/{userId}&#10;          - GET /api/reviews/user/{userId}/stats&#10;          - GET /api/users/{userId}/reviews&#10;&#10;  2. 信用积分系统&#10;      - 用户初始信用分 100。&#10;      - 评价后自动调整卖家信用分：&#10;          - 4-5 星：+5 分&#10;          - 3 星：0 分&#10;          - 1-2 星：-10 分&#10;&#10;      - 信用分限制在 0-200 分。&#10;&#10;  3. 实时消息推送&#10;      - 新增 WebSocket + STOMP 推送能力。&#10;      - 支持订单通知、聊天消息、系统通知、平台广播。&#10;      - 前端通过 websocket.js 订阅：&#10;          - /user/queue/notifications&#10;          - /user/queue/messages&#10;          - /topic/broadcast&#10;&#10;  4. WebSocket 安全增强&#10;      - STOMP 连接必须携带 JWT。&#10;      - 只允许普通用户 token 连接。&#10;      - 限制客户端只能订阅允许的用户队列和广播主题。&#10;      - 禁止客户端直接通过 WebSocket SEND 写入消息，避免绕过 REST 鉴权。&#10;&#10;  5. 认证安全增强&#10;      - 新注册用户密码改为带盐 PBKDF2-HMAC-SHA256 哈希存储。&#10;      - 兼容旧的 sha256$ 密码哈希，避免已有账号无法登录。&#10;&#10;  6. 文档更新&#10;      - README 已同步更新上述功能、接口、安全规则和验证结果。">
+      <option name="closed" value="true" />
+      <created>1780903875955</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1780903875955</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

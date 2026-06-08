@@ -39,6 +39,7 @@ export const userApi = {
   getMyItems: (params) => api.get('/users/me/items', { params }),
   getMyFavorites: (params) => api.get('/users/me/favorites', { params }),
   getMyNotifications: (params) => api.get('/users/me/notifications', { params }),
+  getMyComments: (params) => api.get('/users/me/comments', { params }),
   getReviews: (userId, params) => api.get(`/users/${userId}/reviews`, { params }),
 }
 

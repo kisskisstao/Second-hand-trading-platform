@@ -34,17 +34,20 @@ public class TradeWorkflowService {
 	private final ChatMapper chatMapper;
 	private final ChatMessageMapper chatMessageMapper;
 	private final PaymentService paymentService;
+	private final MessageService messageService;
 	private final SecureRandom secureRandom = new SecureRandom();
 
 	public TradeWorkflowService(JdbcTemplate jdbcTemplate, OrderMapper orderMapper,
 			OrderStatusLogMapper orderStatusLogMapper, ChatMapper chatMapper,
-			ChatMessageMapper chatMessageMapper, PaymentService paymentService) {
+			ChatMessageMapper chatMessageMapper, PaymentService paymentService,
+			MessageService messageService) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.orderMapper = orderMapper;
 		this.orderStatusLogMapper = orderStatusLogMapper;
 		this.chatMapper = chatMapper;
 		this.chatMessageMapper = chatMessageMapper;
 		this.paymentService = paymentService;
+		this.messageService = messageService;
 	}
 
 	@Transactional
@@ -71,6 +74,7 @@ public class TradeWorkflowService {
 		order.setBuyerMessage(optionalText(body.get("message"), ""));
 		orderMapper.insert(order);
 		writeOrderLog(order.getId(), null, "PENDING", buyerId, "USER", "创建订单");
+		notifyUser(sellerId, "收到新的商品预约", "买家预约了《" + item.get("title") + "》，请在个人中心-我的订单中处理。");
 		return orderDetailForUser(order.getId(), buyerId);
 	}
 
@@ -130,6 +134,7 @@ public class TradeWorkflowService {
 		}
 		transition(order, "ACCEPTED", sellerId, "卖家接单", "PENDING");
 		jdbcTemplate.update("UPDATE items SET status = 'RESERVED' WHERE id = ? AND status = 'ON_SALE'", order.getItemId());
+		notifyUser(order.getBuyerId(), "卖家已接单", "你的订单 " + order.getOrderNo() + " 已被卖家接受，请按约定完成交易。");
 		return true;
 	}
 
@@ -149,6 +154,7 @@ public class TradeWorkflowService {
 		orderMapper.updateById(order);
 		writeOrderLog(order.getId(), fromStatus, "CANCELLED", userId, "USER", order.getCancelReason());
 		jdbcTemplate.update("UPDATE items SET status = 'ON_SALE' WHERE id = ? AND status <> 'SOLD'", order.getItemId());
+		notifyUser(counterpartId(order, userId), "订单已取消", "订单 " + order.getOrderNo() + " 已取消，原因：" + order.getCancelReason());
 		return true;
 	}
 
@@ -165,6 +171,7 @@ public class TradeWorkflowService {
 		orderMapper.updateById(order);
 		writeOrderLog(order.getId(), fromStatus, "COMPLETED", userId, "USER", "完成交易");
 		jdbcTemplate.update("UPDATE items SET status = 'SOLD' WHERE id = ?", order.getItemId());
+		notifyUser(counterpartId(order, userId), "订单已完成", "订单 " + order.getOrderNo() + " 已完成，可以在个人中心查看并评价。");
 		return true;
 	}
 
@@ -182,6 +189,7 @@ public class TradeWorkflowService {
 		if (!"PAYING".equals(order.getStatus())) {
 			transition(order, "PAYING", userId, "创建支付单", "PENDING", "ACCEPTED");
 		}
+		notifyUser(order.getSellerId(), "买家已发起支付", "订单 " + order.getOrderNo() + " 已进入支付流程，请留意交易状态。");
 		return payment;
 	}
 
@@ -323,6 +331,16 @@ public class TradeWorkflowService {
 		log.setOperatorType(operatorType);
 		log.setRemark(remark);
 		orderStatusLogMapper.insert(log);
+	}
+
+	private void notifyUser(Long userId, String title, String content) {
+		if (userId != null) {
+			messageService.sendOrderNotification(userId, title, content);
+		}
+	}
+
+	private Long counterpartId(OrderEntity order, Long userId) {
+		return order.getBuyerId().equals(userId) ? order.getSellerId() : order.getBuyerId();
 	}
 
 	private List<Map<String, Object>> orderLogs(Long orderId) {
