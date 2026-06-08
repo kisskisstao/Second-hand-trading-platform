@@ -56,43 +56,6 @@ public class WantedSwapController {
 		return ApiResponse.success(bazaarService.purchaseMatches(purchaseId));
 	}
 
-	@GetMapping("/exchanges")
-	public ApiResponse<PageResponse<Map<String, Object>>> exchanges(
-			@RequestParam(required = false) String keyword,
-			@RequestParam(required = false) Long categoryId,
-			@RequestParam(required = false) String campus,
-			@RequestParam(required = false) String status,
-			@RequestParam(defaultValue = "1") int page,
-			@RequestParam(defaultValue = "10") int pageSize) {
-		return ApiResponse.success(bazaarService.exchanges(keyword, categoryId, campus, status, page, pageSize));
-	}
-
-	@PostMapping("/exchanges")
-	public ApiResponse<Map<String, Object>> createExchange(
-			@RequestAttribute("authId") Long authId,
-			@RequestBody Map<String, Object> body) {
-		return ApiResponse.success(bazaarService.createExchange(authId, body));
-	}
-
-	@PatchMapping("/exchanges/{exchangeId}/cancel")
-	public ApiResponse<Boolean> cancelExchange(
-			@RequestAttribute("authId") Long authId,
-			@PathVariable Integer exchangeId) {
-		return ApiResponse.success(bazaarService.cancelExchange(authId, exchangeId));
-	}
-
-	@PatchMapping("/exchanges/{exchangeId}/matched")
-	public ApiResponse<Boolean> markExchangeMatched(
-			@RequestAttribute("authId") Long authId,
-			@PathVariable Integer exchangeId) {
-		return ApiResponse.success(bazaarService.markExchangeMatched(authId, exchangeId));
-	}
-
-	@GetMapping("/exchanges/{exchangeId}/matches")
-	public ApiResponse<List<Map<String, Object>>> exchangeMatches(@PathVariable Integer exchangeId) {
-		return ApiResponse.success(bazaarService.exchangeMatches(exchangeId));
-	}
-
 	@GetMapping("/wanted-posts")
 	public ApiResponse<PageResponse<Map<String, Object>>> wantedPosts(
 			@RequestParam(required = false) String keyword,
@@ -120,45 +83,4 @@ public class WantedSwapController {
 		return ApiResponse.success(bazaarService.closePurchase(authId, postId));
 	}
 
-	@GetMapping("/swap-requests")
-	public ApiResponse<PageResponse<Map<String, Object>>> swapRequests(
-			@RequestParam(required = false) String keyword,
-			@RequestParam(required = false) Long categoryId,
-			@RequestParam(required = false) String campus,
-			@RequestParam(required = false) String status,
-			@RequestParam(defaultValue = "1") int page,
-			@RequestParam(defaultValue = "10") int pageSize) {
-		return ApiResponse.success(bazaarService.exchanges(keyword, categoryId, campus, status, page, pageSize));
-	}
-
-	@PostMapping("/swap-requests")
-	public ApiResponse<Map<String, Object>> createSwapRequest(
-			@RequestAttribute("authId") Long authId,
-			@RequestBody Map<String, Object> body) {
-		Map<String, Object> row = bazaarService.createExchange(authId, body);
-		row.put("swapRequestId", row.get("exchangeId"));
-		return ApiResponse.success(row);
-	}
-
-	@PatchMapping("/swap-requests/{requestId}/accept")
-	public ApiResponse<Boolean> acceptSwapRequest(
-			@RequestAttribute("authId") Long authId,
-			@PathVariable Integer requestId) {
-		return ApiResponse.success(bazaarService.markExchangeMatched(authId, requestId));
-	}
-
-	@PatchMapping("/swap-requests/{requestId}/reject")
-	public ApiResponse<Boolean> rejectSwapRequest(
-			@RequestAttribute("authId") Long authId,
-			@PathVariable Integer requestId,
-			@RequestBody(required = false) Map<String, Object> body) {
-		return ApiResponse.success(bazaarService.cancelExchange(authId, requestId));
-	}
-
-	@PatchMapping("/swap-requests/{requestId}/cancel")
-	public ApiResponse<Boolean> cancelSwapRequest(
-			@RequestAttribute("authId") Long authId,
-			@PathVariable Integer requestId) {
-		return ApiResponse.success(bazaarService.cancelExchange(authId, requestId));
-	}
 }

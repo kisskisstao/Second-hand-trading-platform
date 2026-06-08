@@ -62,10 +62,7 @@ public class AuthInterceptor implements HandlerInterceptor {
 						|| path.matches("^/api/files/images/[^/]+$")
 						|| "/api/purchases".equals(path)
 						|| path.matches("^/api/purchases/\\d+/matches$")
-						|| "/api/exchanges".equals(path)
-						|| path.matches("^/api/exchanges/\\d+/matches$")
-						|| "/api/wanted-posts".equals(path)
-						|| "/api/swap-requests".equals(path))) {
+						|| "/api/wanted-posts".equals(path))) {
 			return true;
 		}
 

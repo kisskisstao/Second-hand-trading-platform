@@ -1,7 +1,6 @@
 package com.example.Second_hand.trading.platform.service;
 
 import java.math.BigDecimal;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -20,27 +19,22 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
-import com.example.Second_hand.trading.platform.entity.ExchangeEntity;
 import com.example.Second_hand.trading.platform.entity.ItemEntity;
 import com.example.Second_hand.trading.platform.entity.PurchaseEntity;
-import com.example.Second_hand.trading.platform.mapper.ExchangeMapper;
 import com.example.Second_hand.trading.platform.mapper.ItemMapper;
 import com.example.Second_hand.trading.platform.mapper.PurchaseMapper;
 
 @Service
 public class BazaarService {
 	private static final int MAX_PAGE_SIZE = 100;
+
 	private final JdbcTemplate jdbcTemplate;
 	private final PurchaseMapper purchaseMapper;
-	private final ExchangeMapper exchangeMapper;
 	private final ItemMapper itemMapper;
-	private final SecureRandom secureRandom = new SecureRandom();
 
-	public BazaarService(JdbcTemplate jdbcTemplate, PurchaseMapper purchaseMapper,
-			ExchangeMapper exchangeMapper, ItemMapper itemMapper) {
+	public BazaarService(JdbcTemplate jdbcTemplate, PurchaseMapper purchaseMapper, ItemMapper itemMapper) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.purchaseMapper = purchaseMapper;
-		this.exchangeMapper = exchangeMapper;
 		this.itemMapper = itemMapper;
 	}
 
@@ -71,21 +65,21 @@ public class BazaarService {
 	@Transactional
 	public Map<String, Object> createPurchase(Long userId, Map<String, Object> body) {
 		if (userId == null) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in first");
 		}
 		Map<String, Object> data = safeBody(body);
 		BigDecimal budgetMin = optionalMoney(data, "budgetMin", "minPrice");
 		BigDecimal budgetMax = optionalMoney(data, "budgetMax", "maxPrice", "budget");
 		if (budgetMin != null && budgetMax != null && budgetMin.compareTo(budgetMax) > 0) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最低预算不能大于最高预算");
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Minimum budget cannot exceed maximum budget");
 		}
 
 		PurchaseEntity purchase = new PurchaseEntity();
 		purchase.setUserId(userId);
-		purchase.setTitle(requiredText(data, "title", "求购物品名称"));
+		purchase.setTitle(requiredText(data, "title", "title"));
 		purchase.setDescription(optionalText(data, "description", "desc", "message"));
 		purchase.setCategoryId(categoryId(data, "categoryId", "category", "categoryName"));
-		purchase.setCampus(requiredText(data, "campus", "校区"));
+		purchase.setCampus(requiredText(data, "campus", "campus"));
 		purchase.setBudgetMin(budgetMin);
 		purchase.setBudgetMax(budgetMax);
 		purchase.setStatus("OPEN");
@@ -110,86 +104,6 @@ public class BazaarService {
 		return recommendForPurchase(purchase, 10);
 	}
 
-	public PageResponse<Map<String, Object>> exchanges(String keyword, Long categoryId, String campus,
-			String status, int page, int pageSize) {
-		LambdaQueryWrapper<ExchangeEntity> wrapper = Wrappers.lambdaQuery(ExchangeEntity.class)
-				.eq(ExchangeEntity::getDeleted, 0)
-				.eq(ExchangeEntity::getStatus, statusValue(status, "OPEN"));
-		if (StringUtils.hasText(keyword)) {
-			String value = keyword.trim();
-			wrapper.and(query -> query.like(ExchangeEntity::getExpectedTitle, value)
-					.or()
-					.like(ExchangeEntity::getDescription, value));
-		}
-		if (categoryId != null) {
-			wrapper.eq(ExchangeEntity::getTargetCategoryId, categoryId);
-		}
-		if (StringUtils.hasText(campus)) {
-			wrapper.eq(ExchangeEntity::getCampus, campus.trim());
-		}
-		wrapper.orderByDesc(ExchangeEntity::getCreatedAt);
-
-		Page<ExchangeEntity> result = exchangeMapper.selectPage(Page.of(safePage(page), safePageSize(pageSize)), wrapper);
-		return PageResponse.of(result.getRecords().stream().map(this::exchangeRow).toList(),
-				(int) result.getCurrent(), (int) result.getSize(), result.getTotal());
-	}
-
-	@Transactional
-	public Map<String, Object> createExchange(Long userId, Map<String, Object> body) {
-		if (userId == null) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
-		}
-		Map<String, Object> data = safeBody(body);
-		Long itemId = requiredLong(data.get("itemId"), "置换商品 ID");
-		ItemEntity offeredItem = requireOwnedExchangeItem(userId, itemId);
-
-		Long targetItemId = optionalLong(data.get("targetItemId"));
-		ItemEntity targetItem = targetItemId == null ? null : requireExchangeTarget(userId, targetItemId);
-		Long targetCategoryId = categoryId(data, "targetCategoryId", "categoryId", "targetCategory", "category", "categoryName");
-		if (targetCategoryId == null && targetItem != null) {
-			targetCategoryId = targetItem.getCategoryId();
-		}
-
-		ExchangeEntity exchange = new ExchangeEntity();
-		exchange.setExchangeNo("EX" + System.currentTimeMillis() + randomDigits());
-		exchange.setUserId(userId);
-		exchange.setItemId(itemId);
-		exchange.setTargetItemId(targetItemId);
-		exchange.setTargetCategoryId(targetCategoryId);
-		exchange.setExpectedTitle(firstText(optionalText(data, "expectedTitle", "targetTitle", "title"),
-				targetItem == null ? "" : targetItem.getTitle()));
-		exchange.setDescription(optionalText(data, "description", "message"));
-		exchange.setCampus(firstText(optionalText(data, "campus"), offeredItem.getCampus()));
-		exchange.setStatus("OPEN");
-		exchange.setDeleted(0);
-		exchangeMapper.insert(exchange);
-
-		Map<String, Object> row = exchangeRow(exchange);
-		row.put("recommendedItems", recommendForExchange(exchange, 6));
-		return row;
-	}
-
-	@Transactional
-	public boolean cancelExchange(Long userId, Integer exchangeId) {
-		ExchangeEntity exchange = requireOwnedExchange(userId, exchangeId);
-		exchange.setStatus("CANCELLED");
-		exchangeMapper.updateById(exchange);
-		return true;
-	}
-
-	@Transactional
-	public boolean markExchangeMatched(Long userId, Integer exchangeId) {
-		ExchangeEntity exchange = requireOwnedExchange(userId, exchangeId);
-		exchange.setStatus("MATCHED");
-		exchangeMapper.updateById(exchange);
-		return true;
-	}
-
-	public List<Map<String, Object>> exchangeMatches(Integer exchangeId) {
-		ExchangeEntity exchange = requireExchange(exchangeId);
-		return recommendForExchange(exchange, 10);
-	}
-
 	private List<Map<String, Object>> recommendForPurchase(PurchaseEntity purchase, int limit) {
 		LambdaQueryWrapper<ItemEntity> wrapper = Wrappers.lambdaQuery(ItemEntity.class)
 				.eq(ItemEntity::getDeleted, 0)
@@ -203,26 +117,6 @@ public class BazaarService {
 		wrapper.orderByDesc(ItemEntity::getCreatedAt).last("LIMIT 80");
 		return itemMapper.selectList(wrapper).stream()
 				.map(item -> scoredItem(item, purchaseScore(purchase, item), purchaseReasons(purchase, item)))
-				.sorted(scoreComparator())
-				.limit(limit)
-				.toList();
-	}
-
-	private List<Map<String, Object>> recommendForExchange(ExchangeEntity exchange, int limit) {
-		LambdaQueryWrapper<ItemEntity> wrapper = Wrappers.lambdaQuery(ItemEntity.class)
-				.eq(ItemEntity::getDeleted, 0)
-				.eq(ItemEntity::getStatus, "ON_SALE")
-				.eq(ItemEntity::getSwapSupported, 1)
-				.ne(ItemEntity::getId, exchange.getItemId());
-		if (exchange.getUserId() != null) {
-			wrapper.ne(ItemEntity::getSellerId, exchange.getUserId());
-		}
-		if (exchange.getTargetItemId() != null) {
-			wrapper.eq(ItemEntity::getId, exchange.getTargetItemId());
-		}
-		wrapper.orderByDesc(ItemEntity::getCreatedAt).last("LIMIT 80");
-		return itemMapper.selectList(wrapper).stream()
-				.map(item -> scoredItem(item, exchangeScore(exchange, item), exchangeReasons(exchange, item)))
 				.sorted(scoreComparator())
 				.limit(limit)
 				.toList();
@@ -262,41 +156,6 @@ public class BazaarService {
 			reasons.add("价格在预算内");
 		}
 		if (keywordScore(purchase.getTitle() + " " + purchase.getDescription(),
-				item.getTitle() + " " + item.getDescription(), 30) > 0) {
-			reasons.add("关键词相似");
-		}
-		return reasons;
-	}
-
-	private int exchangeScore(ExchangeEntity exchange, ItemEntity item) {
-		int score = 20;
-		if (exchange.getTargetItemId() != null && exchange.getTargetItemId().equals(item.getId())) {
-			score += 100;
-		}
-		if (exchange.getTargetCategoryId() != null && exchange.getTargetCategoryId().equals(item.getCategoryId())) {
-			score += 30;
-		}
-		if (StringUtils.hasText(exchange.getCampus()) && exchange.getCampus().equals(item.getCampus())) {
-			score += 15;
-		}
-		score += keywordScore(exchange.getExpectedTitle() + " " + exchange.getDescription(),
-				item.getTitle() + " " + item.getDescription(), 30);
-		return score;
-	}
-
-	private List<String> exchangeReasons(ExchangeEntity exchange, ItemEntity item) {
-		List<String> reasons = new ArrayList<>();
-		reasons.add("支持置换");
-		if (exchange.getTargetItemId() != null && exchange.getTargetItemId().equals(item.getId())) {
-			reasons.add("目标商品一致");
-		}
-		if (exchange.getTargetCategoryId() != null && exchange.getTargetCategoryId().equals(item.getCategoryId())) {
-			reasons.add("目标分类一致");
-		}
-		if (StringUtils.hasText(exchange.getCampus()) && exchange.getCampus().equals(item.getCampus())) {
-			reasons.add("校区一致");
-		}
-		if (keywordScore(exchange.getExpectedTitle() + " " + exchange.getDescription(),
 				item.getTitle() + " " + item.getDescription(), 30) > 0) {
 			reasons.add("关键词相似");
 		}
@@ -352,35 +211,6 @@ public class BazaarService {
 		return row;
 	}
 
-	private Map<String, Object> exchangeRow(ExchangeEntity exchange) {
-		Map<String, Object> row = new LinkedHashMap<>();
-		row.put("exchangeId", exchange.getId());
-		row.put("exchangeNo", exchange.getExchangeNo());
-		row.put("userId", exchange.getUserId());
-		row.put("itemId", exchange.getItemId());
-		row.put("targetItemId", exchange.getTargetItemId());
-		row.put("targetCategoryId", exchange.getTargetCategoryId());
-		row.put("targetCategoryName", categoryName(exchange.getTargetCategoryId()));
-		row.put("expectedTitle", exchange.getExpectedTitle());
-		row.put("description", exchange.getDescription());
-		row.put("campus", exchange.getCampus());
-		row.put("status", exchange.getStatus());
-		row.put("user", userRow(exchange.getUserId()));
-		row.put("item", itemSummary(exchange.getItemId()));
-		row.put("targetItem", itemSummary(exchange.getTargetItemId()));
-		row.put("createdAt", timeString(exchange.getCreatedAt()));
-		row.put("updatedAt", timeString(exchange.getUpdatedAt()));
-		return row;
-	}
-
-	private Map<String, Object> itemSummary(Long itemId) {
-		if (itemId == null) {
-			return Map.of();
-		}
-		ItemEntity item = itemMapper.selectById(itemId);
-		return item == null ? Map.of() : itemSummary(item);
-	}
-
 	private Map<String, Object> itemSummary(ItemEntity item) {
 		List<String> images = jdbcTemplate.queryForList("""
 				SELECT image_url
@@ -397,7 +227,6 @@ public class BazaarService {
 		row.put("price", item.getPrice());
 		row.put("campus", item.getCampus());
 		row.put("itemStatus", item.getStatus());
-		row.put("swapSupported", Integer.valueOf(1).equals(item.getSwapSupported()));
 		row.put("coverUrl", images.isEmpty() ? "" : images.get(0));
 		row.put("seller", userRow(item.getSellerId()));
 		row.put("createdAt", timeString(item.getCreatedAt()));
@@ -406,11 +235,11 @@ public class BazaarService {
 
 	private PurchaseEntity requireOwnedPurchase(Long userId, Integer purchaseId) {
 		if (userId == null) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in first");
 		}
 		PurchaseEntity purchase = requirePurchase(purchaseId);
 		if (!userId.equals(purchase.getUserId())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能操作自己发布的求购");
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only your own wanted posts can be changed");
 		}
 		return purchase;
 	}
@@ -421,67 +250,9 @@ public class BazaarService {
 				.eq(PurchaseEntity::getDeleted, 0)
 				.last("LIMIT 1"));
 		if (purchase == null) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "求购不存在");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Wanted post does not exist");
 		}
 		return purchase;
-	}
-
-	private ExchangeEntity requireOwnedExchange(Long userId, Integer exchangeId) {
-		if (userId == null) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
-		}
-		ExchangeEntity exchange = requireExchange(exchangeId);
-		if (!userId.equals(exchange.getUserId())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能操作自己发布的置换");
-		}
-		return exchange;
-	}
-
-	private ExchangeEntity requireExchange(Integer exchangeId) {
-		ExchangeEntity exchange = exchangeMapper.selectOne(Wrappers.lambdaQuery(ExchangeEntity.class)
-				.eq(ExchangeEntity::getId, exchangeId)
-				.eq(ExchangeEntity::getDeleted, 0)
-				.last("LIMIT 1"));
-		if (exchange == null) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "置换不存在");
-		}
-		return exchange;
-	}
-
-	private ItemEntity requireOwnedExchangeItem(Long userId, Long itemId) {
-		ItemEntity item = requireVisibleItem(itemId, "置换商品不存在");
-		if (!userId.equals(item.getSellerId())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只能拿自己发布的商品参与置换");
-		}
-		if (!"ON_SALE".equals(item.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "只有在售商品可以参与置换");
-		}
-		return item;
-	}
-
-	private ItemEntity requireExchangeTarget(Long userId, Long itemId) {
-		ItemEntity item = requireVisibleItem(itemId, "目标商品不存在");
-		if (userId.equals(item.getSellerId())) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能用自己的商品作为置换目标");
-		}
-		if (!"ON_SALE".equals(item.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标商品不是在售状态");
-		}
-		if (!Integer.valueOf(1).equals(item.getSwapSupported())) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标商品不支持置换");
-		}
-		return item;
-	}
-
-	private ItemEntity requireVisibleItem(Long itemId, String message) {
-		ItemEntity item = itemMapper.selectOne(Wrappers.lambdaQuery(ItemEntity.class)
-				.eq(ItemEntity::getId, itemId)
-				.eq(ItemEntity::getDeleted, 0)
-				.last("LIMIT 1"));
-		if (item == null) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, message);
-		}
-		return item;
 	}
 
 	private Map<String, Object> userRow(Long userId) {
@@ -520,7 +291,7 @@ public class BazaarService {
 				List<Long> ids = jdbcTemplate.queryForList(
 						"SELECT id FROM categories WHERE name = ? LIMIT 1", Long.class, String.valueOf(value).trim());
 				if (ids.isEmpty()) {
-					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "分类不存在");
+					throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category does not exist");
 				}
 				return ids.get(0);
 			}
@@ -538,7 +309,7 @@ public class BazaarService {
 	private String requiredText(Map<String, Object> body, String key, String label) {
 		String value = optionalText(body, key);
 		if (!StringUtils.hasText(value)) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写" + label);
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please fill in " + label);
 		}
 		return value;
 	}
@@ -562,18 +333,10 @@ public class BazaarService {
 			try {
 				return new BigDecimal(String.valueOf(value).trim());
 			} catch (NumberFormatException ex) {
-				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, key + "格式错误");
+				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, key + " has invalid format");
 			}
 		}
 		return null;
-	}
-
-	private Long requiredLong(Object value, String label) {
-		Long id = optionalLong(value);
-		if (id == null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写" + label);
-		}
-		return id;
 	}
 
 	private Long optionalLong(Object value) {
@@ -590,10 +353,6 @@ public class BazaarService {
 		}
 	}
 
-	private String firstText(String first, String second) {
-		return StringUtils.hasText(first) ? first : (StringUtils.hasText(second) ? second : "");
-	}
-
 	private String timeString(java.time.LocalDateTime time) {
 		return time == null ? "" : time.toString();
 	}
@@ -608,9 +367,5 @@ public class BazaarService {
 
 	private Map<String, Object> safeBody(Map<String, Object> body) {
 		return body == null ? Map.of() : body;
-	}
-
-	private String randomDigits() {
-		return String.valueOf(secureRandom.nextInt(9000) + 1000);
 	}
 }

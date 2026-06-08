@@ -4,11 +4,34 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="27ef6759-2525-465c-b4d2-023ada88b084" name="更改" comment="更新了代码，解决订单、预约、评论均未实现跨用户同步，卖家无法管理订单，以物换物功能缺失">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+    <list default="true" id="27ef6759-2525-465c-b4d2-023ada88b084" name="更改" comment="更新">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/scripts/init-database.ps1" beforeDir="false" afterPath="$PROJECT_DIR$/backend/scripts/init-database.ps1" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/config/AuthInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/config/AuthInterceptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/config/CorsConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/config/CorsConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/config/WebSocketConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/config/WebSocketConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/controller/AdminController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/controller/AdminController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/controller/WantedSwapController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/controller/WantedSwapController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/entity/ExchangeEntity.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/mapper/ExchangeMapper.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/service/AdminService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/service/AdminService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/service/BazaarService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/service/BazaarService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/service/ItemService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/example/Second_hand/trading/platform/service/ItemService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/components/product/ProductListItem.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/components/product/ProductListItem.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/data/mock.js" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/data/mock.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/router/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/router/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/services/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/services/api.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/services/normalizers.js" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/services/normalizers.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/admin/AdminCategoriesView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/admin/AdminCategoriesView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/admin/AdminItemsView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/admin/AdminItemsView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/admin/AdminOrdersView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/admin/AdminOrdersView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/admin/AdminReportsView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/admin/AdminReportsView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/admin/AdminSettingsView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/admin/AdminSettingsView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/admin/AdminUsersView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/admin/AdminUsersView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/front/BazaarView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/front/BazaarView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/src/views/front/ProfileCenterView.vue" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/src/views/front/ProfileCenterView.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/fronted/vite.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/fronted/vite.config.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -96,7 +119,8 @@
       <workItem from="1780899624290" duration="641000" />
       <workItem from="1780901917735" duration="840000" />
       <workItem from="1780903837463" duration="2187000" />
-      <workItem from="1780922399335" duration="2012000" />
+      <workItem from="1780922399335" duration="2586000" />
+      <workItem from="1780926915647" duration="603000" />
     </task>
     <task id="LOCAL-00001" summary="本次更新&#10;1. 用户评价体系&#10;      - 订单完成后，买家可对卖家评价。&#10;      - 支持 1-5 星评分和文字评价。&#10;      - 每个订单每个买家只能评价一次。&#10;      - 评价目标由后端根据订单卖家自动确定，防止前端伪造目标用户。&#10;      - 支持接口：&#10;          - POST /api/reviews&#10;          - POST /api/orders/{orderId}/reviews&#10;          - GET /api/reviews/user/{userId}&#10;          - GET /api/reviews/user/{userId}/stats&#10;          - GET /api/users/{userId}/reviews&#10;&#10;  2. 信用积分系统&#10;      - 用户初始信用分 100。&#10;      - 评价后自动调整卖家信用分：&#10;          - 4-5 星：+5 分&#10;          - 3 星：0 分&#10;          - 1-2 星：-10 分&#10;&#10;      - 信用分限制在 0-200 分。&#10;&#10;  3. 实时消息推送&#10;      - 新增 WebSocket + STOMP 推送能力。&#10;      - 支持订单通知、聊天消息、系统通知、平台广播。&#10;      - 前端通过 websocket.js 订阅：&#10;          - /user/queue/notifications&#10;          - /user/queue/messages&#10;          - /topic/broadcast&#10;&#10;  4. WebSocket 安全增强&#10;      - STOMP 连接必须携带 JWT。&#10;      - 只允许普通用户 token 连接。&#10;      - 限制客户端只能订阅允许的用户队列和广播主题。&#10;      - 禁止客户端直接通过 WebSocket SEND 写入消息，避免绕过 REST 鉴权。&#10;&#10;  5. 认证安全增强&#10;      - 新注册用户密码改为带盐 PBKDF2-HMAC-SHA256 哈希存储。&#10;      - 兼容旧的 sha256$ 密码哈希，避免已有账号无法登录。&#10;&#10;  6. 文档更新&#10;      - README 已同步更新上述功能、接口、安全规则和验证结果。">
       <option name="closed" value="true" />
@@ -122,7 +146,15 @@
       <option name="project" value="LOCAL" />
       <updated>1780922604805</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="更新">
+      <option name="closed" value="true" />
+      <created>1780926195282</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1780926195282</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -131,6 +163,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="本次更新&#10;1. 用户评价体系&#10;      - 订单完成后，买家可对卖家评价。&#10;      - 支持 1-5 星评分和文字评价。&#10;      - 每个订单每个买家只能评价一次。&#10;      - 评价目标由后端根据订单卖家自动确定，防止前端伪造目标用户。&#10;      - 支持接口：&#10;          - POST /api/reviews&#10;          - POST /api/orders/{orderId}/reviews&#10;          - GET /api/reviews/user/{userId}&#10;          - GET /api/reviews/user/{userId}/stats&#10;          - GET /api/users/{userId}/reviews&#10;&#10;  2. 信用积分系统&#10;      - 用户初始信用分 100。&#10;      - 评价后自动调整卖家信用分：&#10;          - 4-5 星：+5 分&#10;          - 3 星：0 分&#10;          - 1-2 星：-10 分&#10;&#10;      - 信用分限制在 0-200 分。&#10;&#10;  3. 实时消息推送&#10;      - 新增 WebSocket + STOMP 推送能力。&#10;      - 支持订单通知、聊天消息、系统通知、平台广播。&#10;      - 前端通过 websocket.js 订阅：&#10;          - /user/queue/notifications&#10;          - /user/queue/messages&#10;          - /topic/broadcast&#10;&#10;  4. WebSocket 安全增强&#10;      - STOMP 连接必须携带 JWT。&#10;      - 只允许普通用户 token 连接。&#10;      - 限制客户端只能订阅允许的用户队列和广播主题。&#10;      - 禁止客户端直接通过 WebSocket SEND 写入消息，避免绕过 REST 鉴权。&#10;&#10;  5. 认证安全增强&#10;      - 新注册用户密码改为带盐 PBKDF2-HMAC-SHA256 哈希存储。&#10;      - 兼容旧的 sha256$ 密码哈希，避免已有账号无法登录。&#10;&#10;  6. 文档更新&#10;      - README 已同步更新上述功能、接口、安全规则和验证结果。" />
     <MESSAGE value="更新了代码，解决订单、预约、评论均未实现跨用户同步，卖家无法管理订单，以物换物功能缺失" />
-    <option name="LAST_COMMIT_MESSAGE" value="更新了代码，解决订单、预约、评论均未实现跨用户同步，卖家无法管理订单，以物换物功能缺失" />
+    <MESSAGE value="更新" />
+    <option name="LAST_COMMIT_MESSAGE" value="更新" />
   </component>
 </project>

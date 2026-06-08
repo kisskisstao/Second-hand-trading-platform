@@ -90,15 +90,6 @@ export const wantedApi = {
   matches: (purchaseId) => api.get(`/purchases/${purchaseId}/matches`),
 }
 
-export const swapApi = {
-  create: (data) => api.post('/exchanges', data),
-  list: (params) => api.get('/exchanges', { params }),
-  matches: (exchangeId) => api.get(`/exchanges/${exchangeId}/matches`),
-  accept: (exchangeId) => api.patch(`/exchanges/${exchangeId}/matched`),
-  reject: (exchangeId, data) => api.patch(`/exchanges/${exchangeId}/cancel`, data),
-  cancel: (exchangeId) => api.patch(`/exchanges/${exchangeId}/cancel`),
-}
-
 export const chatApi = {
   create: (data) => api.post('/chats', data),
   list: () => api.get('/chats'),

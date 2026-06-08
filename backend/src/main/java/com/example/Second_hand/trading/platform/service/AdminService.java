@@ -122,24 +122,199 @@ public class AdminService {
 
 	public List<Map<String, Object>> disputes() {
 		return jdbcTemplate.queryForList("""
-				SELECT id AS disputeId, dispute_no AS disputeNo, order_id AS orderId, applicant_id AS applicantId,
-				  reason, evidence_urls AS evidenceUrls, status, handled_by AS handledBy, handled_at AS handledAt,
-				  result_remark AS resultRemark, created_at AS createdAt, updated_at AS updatedAt
-				FROM disputes
-				ORDER BY created_at DESC
+				SELECT d.id AS disputeId, d.dispute_no AS disputeNo, d.order_id AS orderId,
+				  d.applicant_id AS applicantId, applicant.nickname AS applicantName,
+				  d.reason, d.evidence_urls AS evidenceUrls, d.status, d.handled_by AS handledBy,
+				  d.handled_at AS handledAt, d.result_remark AS resultRemark,
+				  o.amount, o.buyer_id AS buyerId, buyer.nickname AS buyerName,
+				  o.seller_id AS sellerId, seller.nickname AS sellerName,
+				  i.title AS itemTitle, d.created_at AS createdAt, d.updated_at AS updatedAt
+				FROM disputes d
+				LEFT JOIN orders o ON o.id = d.order_id
+				LEFT JOIN items i ON i.id = o.item_id
+				LEFT JOIN users applicant ON applicant.id = d.applicant_id
+				LEFT JOIN users buyer ON buyer.id = o.buyer_id
+				LEFT JOIN users seller ON seller.id = o.seller_id
+				ORDER BY d.created_at DESC
 				LIMIT 100
 				""");
 	}
 
 	public List<Map<String, Object>> reports() {
 		return jdbcTemplate.queryForList("""
-				SELECT id AS reportId, reporter_id AS reporterId, target_type AS targetType, target_id AS targetId,
-				  report_type AS reportType, content, status, handled_by AS handledBy, handled_at AS handledAt,
-				  result_remark AS resultRemark, created_at AS createdAt
-				FROM reports
-				ORDER BY created_at DESC
+				SELECT r.id AS reportId, r.reporter_id AS reporterId, reporter.nickname AS reporterName,
+				  r.target_type AS targetType, r.target_id AS targetId, r.report_type AS reportType,
+				  r.content, r.status, r.handled_by AS handledBy, r.handled_at AS handledAt,
+				  r.result_remark AS resultRemark,
+				  CASE
+				    WHEN r.target_type = 'ITEM' THEN item.title
+				    WHEN r.target_type = 'USER' THEN target_user.nickname
+				    ELSE CAST(r.target_id AS CHAR)
+				  END AS targetName,
+				  r.created_at AS createdAt
+				FROM reports r
+				LEFT JOIN users reporter ON reporter.id = r.reporter_id
+				LEFT JOIN items item ON item.id = r.target_id AND r.target_type = 'ITEM'
+				LEFT JOIN users target_user ON target_user.id = r.target_id AND r.target_type = 'USER'
+				ORDER BY r.created_at DESC
 				LIMIT 100
 				""");
+	}
+
+	public List<Map<String, Object>> categories() {
+		return jdbcTemplate.queryForList("""
+				SELECT c.id AS categoryId, c.name, c.sort_order AS sortOrder, c.enabled,
+				  COUNT(DISTINCT i.id) AS productCount,
+				  COALESCE(GROUP_CONCAT(t.name ORDER BY t.sort_order, t.id SEPARATOR ','), '') AS tags
+				FROM categories c
+				LEFT JOIN items i ON i.category_id = c.id AND i.deleted = 0
+				LEFT JOIN category_tags t ON t.category_id = c.id
+				WHERE c.enabled = 1
+				GROUP BY c.id, c.name, c.sort_order, c.enabled
+				ORDER BY c.sort_order, c.id
+				""");
+	}
+
+	@Transactional
+	public Map<String, Object> createCategory(Map<String, Object> body) {
+		String name = requiredText(body, "name", "鍒嗙被鍚嶇О");
+		Integer sortOrder = intValue(body.get("sortOrder"), nextCategorySortOrder());
+		jdbcTemplate.update("""
+				INSERT INTO categories (name, sort_order, enabled)
+				VALUES (?, ?, 1)
+				ON DUPLICATE KEY UPDATE sort_order = VALUES(sort_order), enabled = 1
+				""", name, sortOrder);
+		Long categoryId = jdbcTemplate.queryForObject("SELECT id FROM categories WHERE name = ? LIMIT 1", Long.class, name);
+		replaceCategoryTags(categoryId, tags(body));
+		return category(categoryId);
+	}
+
+	@Transactional
+	public boolean updateCategory(Integer categoryId, Map<String, Object> body) {
+		requireCategory(categoryId);
+		String name = requiredText(body, "name", "鍒嗙被鍚嶇О");
+		Integer sortOrder = intValue(body.get("sortOrder"), categoryId);
+		int updated = jdbcTemplate.update("""
+				UPDATE categories
+				SET name = ?, sort_order = ?, enabled = 1
+				WHERE id = ?
+				""", name, sortOrder, categoryId);
+		if (updated == 0) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "鍒嗙被涓嶅瓨鍦?");
+		}
+		replaceCategoryTags(categoryId.longValue(), tags(body));
+		return true;
+	}
+
+	@Transactional
+	public boolean deleteCategory(Integer categoryId) {
+		requireCategory(categoryId);
+		Long itemCount = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM items WHERE category_id = ? AND deleted = 0", Long.class, categoryId);
+		if (itemCount != null && itemCount > 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "鍒嗙被涓嬭繕鏈夊晢鍝侊紝涓嶈兘鍒犻櫎");
+		}
+		jdbcTemplate.update("UPDATE categories SET enabled = 0 WHERE id = ?", categoryId);
+		jdbcTemplate.update("DELETE FROM category_tags WHERE category_id = ?", categoryId);
+		return true;
+	}
+
+	@Transactional
+	public boolean disableUser(Integer userId) {
+		int updated = jdbcTemplate.update("""
+				UPDATE users
+				SET status = 'DISABLED'
+				WHERE id = ? AND deleted = 0
+				""", userId);
+		if (updated == 0) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "鐢ㄦ埛涓嶅瓨鍦?");
+		}
+		jdbcTemplate.update("UPDATE items SET status = 'REMOVED' WHERE seller_id = ? AND status = 'ON_SALE'", userId);
+		return true;
+	}
+
+	@Transactional
+	public boolean enableUser(Integer userId) {
+		int updated = jdbcTemplate.update("""
+				UPDATE users
+				SET status = 'NORMAL'
+				WHERE id = ? AND deleted = 0
+				""", userId);
+		if (updated == 0) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "鐢ㄦ埛涓嶅瓨鍦?");
+		}
+		return true;
+	}
+
+	@Transactional
+	public boolean resolveDispute(Long adminId, Integer disputeId, Map<String, Object> body) {
+		String result = optionalText(body, "result");
+		String remark = firstText(optionalText(body, "remark"), optionalText(body, "reason"));
+		String status = result.toUpperCase().contains("REJECT") || result.contains("驳回") ? "REJECTED" : "RESOLVED";
+		int updated = jdbcTemplate.update("""
+				UPDATE disputes
+				SET status = ?, handled_by = ?, handled_at = CURRENT_TIMESTAMP, result_remark = ?
+				WHERE id = ?
+				""", status, adminId, remark, disputeId);
+		if (updated == 0) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "绾犵悍涓嶅瓨鍦?");
+		}
+		return true;
+	}
+
+	@Transactional
+	public boolean approveReport(Long adminId, Integer reportId, Map<String, Object> body) {
+		Map<String, Object> report = report(reportId);
+		String remark = firstText(optionalText(body, "remark"), optionalText(body, "reason"));
+		jdbcTemplate.update("""
+				UPDATE reports
+				SET status = 'APPROVED', handled_by = ?, handled_at = CURRENT_TIMESTAMP, result_remark = ?
+				WHERE id = ?
+				""", adminId, remark, reportId);
+		applyReportPenalty(report, remark);
+		return true;
+	}
+
+	@Transactional
+	public boolean rejectReport(Long adminId, Integer reportId, Map<String, Object> body) {
+		report(reportId);
+		String remark = firstText(optionalText(body, "remark"), optionalText(body, "reason"));
+		jdbcTemplate.update("""
+				UPDATE reports
+				SET status = 'REJECTED', handled_by = ?, handled_at = CURRENT_TIMESTAMP, result_remark = ?
+				WHERE id = ?
+				""", adminId, remark, reportId);
+		return true;
+	}
+
+	@Transactional
+	public boolean updateSettings(Long adminId, Map<String, Object> body) {
+		upsertSetting("trade_rules", jsonObject(Map.of(
+				"maxImages", intValue(body.get("maxImages"), 9),
+				"disputeDays", intValue(body.get("disputeDays"), 3),
+				"creditDeduction", intValue(body.get("creditDeduction"), 10),
+				"tradeTip", optionalText(body, "tradeTip"))), "骞冲彴浜ゆ槗瑙勫垯", adminId);
+		upsertSetting("payment_wechat", jsonObject(Map.of("appId", optionalText(body, "wechatAppId"))), "寰俊鏀粯閰嶇疆", adminId);
+		upsertSetting("payment_alipay", jsonObject(Map.of("appId", optionalText(body, "alipayAppId"))), "鏀粯瀹濇敮浠橀厤缃?", adminId);
+		upsertSetting("payment_campus_card", jsonObject(Map.of("merchant", optionalText(body, "campusCardMerchant"))), "鏍″洯鍗℃敮浠橀厤缃?", adminId);
+
+		if (body.get("sensitiveWords") instanceof List<?> list) {
+			jdbcTemplate.update("UPDATE sensitive_words SET enabled = 0");
+			int sort = 0;
+			for (Object wordValue : list) {
+				if (wordValue == null || !StringUtils.hasText(String.valueOf(wordValue))) {
+					continue;
+				}
+				String word = String.valueOf(wordValue).trim();
+				jdbcTemplate.update("""
+						INSERT INTO sensitive_words (word, enabled, created_by)
+						VALUES (?, 1, ?)
+						ON DUPLICATE KEY UPDATE enabled = 1, created_by = VALUES(created_by)
+						""", word, adminId == null ? 1L : adminId);
+				sort++;
+			}
+		}
+		return true;
 	}
 
 	public Map<String, Object> settings() {
@@ -315,8 +490,146 @@ public class AdminService {
 	}
 
 	private String optionalText(Map<String, Object> body, String key) {
+		if (body == null) {
+			return "";
+		}
 		Object value = body.get(key);
 		return value == null || !StringUtils.hasText(String.valueOf(value)) ? "" : String.valueOf(value).trim();
+	}
+
+	private String firstText(String first, String second) {
+		return StringUtils.hasText(first) ? first : (StringUtils.hasText(second) ? second : "");
+	}
+
+	private Integer intValue(Object value, Integer fallback) {
+		if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+			return fallback;
+		}
+		if (value instanceof Number number) {
+			return number.intValue();
+		}
+		try {
+			return Integer.valueOf(String.valueOf(value).trim());
+		} catch (NumberFormatException ex) {
+			return fallback;
+		}
+	}
+
+	private Integer nextCategorySortOrder() {
+		Integer value = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM categories", Integer.class);
+		return value == null ? 1 : value;
+	}
+
+	private void requireCategory(Integer categoryId) {
+		Long count = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM categories WHERE id = ? AND enabled = 1", Long.class, categoryId);
+		if (count == null || count == 0) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Category does not exist");
+		}
+	}
+
+	private Map<String, Object> category(Long categoryId) {
+		List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+				SELECT c.id AS categoryId, c.name, c.sort_order AS sortOrder, c.enabled,
+				  COUNT(DISTINCT i.id) AS productCount,
+				  COALESCE(GROUP_CONCAT(t.name ORDER BY t.sort_order, t.id SEPARATOR ','), '') AS tags
+				FROM categories c
+				LEFT JOIN items i ON i.category_id = c.id AND i.deleted = 0
+				LEFT JOIN category_tags t ON t.category_id = c.id
+				WHERE c.id = ? AND c.enabled = 1
+				GROUP BY c.id, c.name, c.sort_order, c.enabled
+				LIMIT 1
+				""", categoryId);
+		if (rows.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Category does not exist");
+		}
+		return rows.get(0);
+	}
+
+	private List<String> tags(Map<String, Object> body) {
+		Object value = body == null ? null : body.get("tags");
+		if (value instanceof List<?> list) {
+			return list.stream()
+					.filter(item -> item != null && StringUtils.hasText(String.valueOf(item)))
+					.map(item -> String.valueOf(item).trim())
+					.distinct()
+					.toList();
+		}
+		if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+			return List.of();
+		}
+		return List.of(String.valueOf(value).split("[,，]")).stream()
+				.map(String::trim)
+				.filter(StringUtils::hasText)
+				.distinct()
+				.toList();
+	}
+
+	private void replaceCategoryTags(Long categoryId, List<String> tags) {
+		jdbcTemplate.update("DELETE FROM category_tags WHERE category_id = ?", categoryId);
+		int sortOrder = 1;
+		for (String tag : tags) {
+			jdbcTemplate.update("""
+					INSERT INTO category_tags (category_id, name, sort_order)
+					VALUES (?, ?, ?)
+					""", categoryId, tag, sortOrder++);
+		}
+	}
+
+	private Map<String, Object> report(Integer reportId) {
+		List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+				SELECT id AS reportId, target_type AS targetType, target_id AS targetId, reporter_id AS reporterId
+				FROM reports
+				WHERE id = ?
+				LIMIT 1
+				""", reportId);
+		if (rows.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Report does not exist");
+		}
+		return rows.get(0);
+	}
+
+	private void applyReportPenalty(Map<String, Object> report, String remark) {
+		String targetType = String.valueOf(report.get("targetType"));
+		Long targetId = ((Number) report.get("targetId")).longValue();
+		if ("ITEM".equalsIgnoreCase(targetType)) {
+			jdbcTemplate.update("UPDATE items SET status = 'REMOVED' WHERE id = ? AND deleted = 0", targetId);
+			List<Long> sellerIds = jdbcTemplate.queryForList("SELECT seller_id FROM items WHERE id = ? LIMIT 1", Long.class, targetId);
+			if (!sellerIds.isEmpty()) {
+				jdbcTemplate.update("UPDATE users SET credit_score = GREATEST(credit_score - 10, 0) WHERE id = ?", sellerIds.get(0));
+			}
+		} else if ("USER".equalsIgnoreCase(targetType)) {
+			jdbcTemplate.update("UPDATE users SET credit_score = GREATEST(credit_score - 10, 0) WHERE id = ?", targetId);
+			if (StringUtils.hasText(remark) && remark.toUpperCase().contains("DISABLE")) {
+				jdbcTemplate.update("UPDATE users SET status = 'DISABLED' WHERE id = ?", targetId);
+			}
+		}
+	}
+
+	private void upsertSetting(String key, String value, String description, Long adminId) {
+		jdbcTemplate.update("""
+				INSERT INTO system_settings (setting_key, setting_value, description, updated_by)
+				VALUES (?, ?, ?, ?)
+				ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value),
+				  description = VALUES(description), updated_by = VALUES(updated_by)
+				""", key, value, description, adminId == null ? 1L : adminId);
+	}
+
+	private String jsonObject(Map<String, Object> values) {
+		return values.entrySet().stream()
+				.map(entry -> "\"" + escapeJson(entry.getKey()) + "\":" + jsonValue(entry.getValue()))
+				.collect(java.util.stream.Collectors.joining(",", "{", "}"));
+	}
+
+	private String jsonValue(Object value) {
+		if (value instanceof Number || value instanceof Boolean) {
+			return String.valueOf(value);
+		}
+		return "\"" + escapeJson(value == null ? "" : String.valueOf(value)) + "\"";
+	}
+
+	private String escapeJson(String value) {
+		return value.replace("\\", "\\\\").replace("\"", "\\\"");
 	}
 
 	private boolean boolValue(Object value) {

@@ -16,7 +16,6 @@ defineProps({
     <div class="product-main">
       <div class="product-title-row">
         <h3>{{ product.title }}</h3>
-        <el-tag v-if="product.swap" type="warning" effect="plain">支持置换</el-tag>
       </div>
       <p>{{ product.desc }}</p>
       <div class="product-meta">

@@ -37,7 +37,6 @@ export function normalizeItem(item = {}) {
     hot: numberValue(item.viewCount),
     favoriteCount: numberValue(item.favoriteCount),
     distance: '',
-    swap: Boolean(item.swapSupported),
     image: coverUrl,
     imageUrls: imageUrls.length ? imageUrls : [coverUrl],
     seller: seller.nickname || (seller.userId ? `用户${seller.userId}` : ''),

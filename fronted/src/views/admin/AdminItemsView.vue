@@ -29,7 +29,6 @@ const createForm = reactive({
   tradePlace: '',
   tradeModes: ['面交'],
   status: '上架',
-  swapSupported: false,
   imageUrl: '',
 })
 
@@ -139,7 +138,6 @@ function resetCreateForm() {
     tradePlace: '',
     tradeModes: ['面交'],
     status: '上架',
-    swapSupported: false,
     imageUrl: '',
   })
 }
@@ -178,7 +176,6 @@ async function createItem() {
       tradePlace: createForm.tradePlace.trim(),
       tradeModes: createForm.tradeModes,
       status: createForm.status,
-      swapSupported: createForm.swapSupported,
       imageUrl: createForm.imageUrl.trim(),
     })
     ElMessage.success('商品已新增')
@@ -333,9 +330,6 @@ onMounted(() => {
               <el-checkbox label="面交" />
               <el-checkbox label="线上担保" />
             </el-checkbox-group>
-          </el-form-item>
-          <el-form-item label="支持置换">
-            <el-switch v-model="createForm.swapSupported" />
           </el-form-item>
         </div>
         <el-form-item label="商品描述">

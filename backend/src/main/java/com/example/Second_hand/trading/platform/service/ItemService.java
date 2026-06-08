@@ -106,7 +106,7 @@ public class ItemService {
 		item.setTradePlace(optionalText(body, "tradePlace"));
 		item.setTradeModes(tradeModes(body.get("tradeModes")));
 		item.setStatus(statusCode(optionalText(body, "status")));
-		item.setSwapSupported(boolValue(body.get("swapSupported")) ? 1 : 0);
+		item.setSwapSupported(0);
 		item.setViewCount(0);
 		item.setFavoriteCount(0);
 		item.setDeleted(0);
@@ -393,7 +393,6 @@ public class ItemService {
 		row.put("dormitory", item.getDormitory());
 		row.put("tradePlace", item.getTradePlace());
 		row.put("tradeModes", item.getTradeModes());
-		row.put("swapSupported", Integer.valueOf(1).equals(item.getSwapSupported()));
 		row.put("coverUrl", coverUrl);
 		row.put("imageUrls", imageUrls);
 		row.put("seller", sellerRow(item.getSellerId(), item.getCampus()));

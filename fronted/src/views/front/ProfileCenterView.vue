@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import ProductListItem from '../../components/product/ProductListItem.vue'
-import { itemApi, orderApi, reviewApi, swapApi, userApi, wantedApi } from '../../services/api'
+import { itemApi, orderApi, reviewApi, userApi, wantedApi } from '../../services/api'
 import { normalizeItemPage, normalizeOrder } from '../../services/normalizers'
 import { useAuthStore } from '../../stores/auth'
 
@@ -19,7 +19,6 @@ const myOrders = ref([])
 const myReviews = ref([])
 const myComments = ref([])
 const myWantedPosts = ref([])
-const mySwapRequests = ref([])
 const notifications = ref([])
 const loadingItems = ref(false)
 
@@ -30,7 +29,6 @@ const menuItems = [
   { key: 'notifications', label: '系统通知' },
   { key: 'reviews', label: '我的评价/评论' },
   { key: 'wanted', label: '我的求购' },
-  { key: 'swap', label: '以物换物' },
   { key: 'privacy', label: '隐私设置' },
 ]
 
@@ -103,14 +101,13 @@ async function fetchUserItems() {
 
   loadingItems.value = true
   try {
-    const [itemsResponse, favoritesResponse, ordersResponse, reviewsResponse, commentsResponse, wantedResponses, swapResponses] = await Promise.all([
+    const [itemsResponse, favoritesResponse, ordersResponse, reviewsResponse, commentsResponse, wantedResponses] = await Promise.all([
       userApi.getMyItems({ page: 1, pageSize: 100 }),
       userApi.getMyFavorites({ page: 1, pageSize: 100 }),
       orderApi.list({ page: 1, pageSize: 100 }),
       reviewApi.getUserReviews(currentUserId.value),
       userApi.getMyComments({ page: 1, pageSize: 100 }),
       Promise.all(['OPEN', 'CLOSED'].map((status) => wantedApi.list({ page: 1, pageSize: 100, status }))),
-      Promise.all(['OPEN', 'MATCHED', 'CANCELLED'].map((status) => swapApi.list({ page: 1, pageSize: 100, status }))),
     ])
     myProducts.value = normalizeItemPage(itemsResponse).list
     favoriteProducts.value = normalizeItemPage(favoritesResponse).list
@@ -118,7 +115,6 @@ async function fetchUserItems() {
     myReviews.value = normalizeReviews(reviewsResponse)
     myComments.value = normalizeMyComments(commentsResponse)
     myWantedPosts.value = wantedResponses.flatMap(normalizePurchases).filter(isMine)
-    mySwapRequests.value = swapResponses.flatMap(normalizeExchanges).filter(isMine)
     await fetchNotifications()
   } catch (error) {
     myProducts.value = []
@@ -127,7 +123,6 @@ async function fetchUserItems() {
     myReviews.value = []
     myComments.value = []
     myWantedPosts.value = []
-    mySwapRequests.value = []
     notifications.value = []
     console.error(error)
   } finally {
@@ -176,23 +171,6 @@ function normalizePurchases(response = {}) {
       campus: row.campus || '',
       status: row.status || 'OPEN',
       budget: budgetText(row),
-      createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
-    }))
-    : []
-}
-
-function normalizeExchanges(response = {}) {
-  const data = response.data || response
-  return Array.isArray(data.list)
-    ? data.list.map((row) => ({
-      id: row.exchangeId,
-      userId: row.userId,
-      title: row.item?.title || '置换商品',
-      itemId: row.itemId,
-      expectedTitle: row.expectedTitle || '接受相近物品',
-      description: row.description || '',
-      campus: row.campus || '',
-      status: row.status || 'OPEN',
       createdAt: String(row.createdAt || '').replace('T', ' ').slice(0, 16),
     }))
     : []
@@ -263,11 +241,9 @@ function orderStatusType(status) {
   return ''
 }
 
-function exchangeStatusText(status) {
+function wantedStatusText(status) {
   const map = {
-    OPEN: '置换中',
-    MATCHED: '已匹配',
-    CANCELLED: '已取消',
+    OPEN: '求购中',
     CLOSED: '已关闭',
   }
   return map[status] || status || '未知'
@@ -364,26 +340,6 @@ async function closeWanted(post) {
     await fetchUserItems()
   } catch (error) {
     ElMessage.error(error.message || '关闭求购失败')
-  }
-}
-
-async function cancelSwap(exchange) {
-  try {
-    await swapApi.cancel(exchange.id)
-    ElMessage.success('置换已取消')
-    await fetchUserItems()
-  } catch (error) {
-    ElMessage.error(error.message || '取消置换失败')
-  }
-}
-
-async function markSwapMatched(exchange) {
-  try {
-    await swapApi.accept(exchange.id)
-    ElMessage.success('置换已标记为匹配')
-    await fetchUserItems()
-  } catch (error) {
-    ElMessage.error(error.message || '标记匹配失败')
   }
 }
 
@@ -653,31 +609,11 @@ function viewProduct(product) {
                 <small>{{ post.campus || '不限校区' }} · {{ post.budget }} · {{ post.createdAt }}</small>
               </div>
               <div class="profile-record-actions">
-                <el-tag :type="post.status === 'OPEN' ? 'success' : 'info'">{{ exchangeStatusText(post.status) }}</el-tag>
+                <el-tag :type="post.status === 'OPEN' ? 'success' : 'info'">{{ wantedStatusText(post.status) }}</el-tag>
                 <el-button v-if="post.status === 'OPEN'" plain @click="closeWanted(post)">关闭</el-button>
               </div>
             </div>
             <el-empty v-if="myWantedPosts.length === 0" description="暂未发布求购" />
-          </div>
-
-          <div v-else-if="activeMenu === 'swap'" class="profile-record-list">
-            <div v-for="exchange in mySwapRequests" :key="exchange.id" class="profile-record-row">
-              <div>
-                <strong>{{ exchange.title }}</strong>
-                <p>想换：{{ exchange.expectedTitle }}</p>
-                <small>{{ exchange.campus || '不限校区' }} · {{ exchange.createdAt }}</small>
-              </div>
-              <div class="profile-record-actions">
-                <el-tag :type="exchange.status === 'OPEN' ? 'warning' : 'info'">
-                  {{ exchangeStatusText(exchange.status) }}
-                </el-tag>
-                <el-button v-if="exchange.status === 'OPEN'" type="primary" plain @click="markSwapMatched(exchange)">
-                  标记匹配
-                </el-button>
-                <el-button v-if="exchange.status === 'OPEN'" plain @click="cancelSwap(exchange)">取消</el-button>
-              </div>
-            </div>
-            <el-empty v-if="mySwapRequests.length === 0" description="暂无置换商品" />
           </div>
 
           <div v-else class="privacy-list">

@@ -49,12 +49,12 @@ public class AdminController {
 
 	@PatchMapping("/users/{userId}/disable")
 	public ApiResponse<Boolean> disableUser(@PathVariable Integer userId) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(adminService.disableUser(userId));
 	}
 
 	@PatchMapping("/users/{userId}/enable")
 	public ApiResponse<Boolean> enableUser(@PathVariable Integer userId) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(adminService.enableUser(userId));
 	}
 
 	@GetMapping("/items")
@@ -89,22 +89,22 @@ public class AdminController {
 
 	@GetMapping("/categories")
 	public ApiResponse<List<Map<String, Object>>> categories() {
-		return ApiResponse.success(itemService.categories());
+		return ApiResponse.success(adminService.categories());
 	}
 
 	@PostMapping("/categories")
 	public ApiResponse<Map<String, Object>> createCategory(@RequestBody Map<String, Object> body) {
-		return ApiResponse.success(Map.of("categoryId", 7));
+		return ApiResponse.success(adminService.createCategory(body));
 	}
 
 	@PutMapping("/categories/{categoryId}")
 	public ApiResponse<Boolean> updateCategory(@PathVariable Integer categoryId, @RequestBody Map<String, Object> body) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(adminService.updateCategory(categoryId, body));
 	}
 
 	@DeleteMapping("/categories/{categoryId}")
 	public ApiResponse<Boolean> deleteCategory(@PathVariable Integer categoryId) {
-		return ApiResponse.success(true);
+		return ApiResponse.success(adminService.deleteCategory(categoryId));
 	}
 
 	@GetMapping("/orders")
@@ -118,8 +118,11 @@ public class AdminController {
 	}
 
 	@PatchMapping("/disputes/{disputeId}/resolve")
-	public ApiResponse<Boolean> resolveDispute(@PathVariable String disputeId, @RequestBody Map<String, Object> body) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> resolveDispute(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer disputeId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(adminService.resolveDispute(authId, disputeId, body));
 	}
 
 	@GetMapping("/reports")
@@ -128,13 +131,19 @@ public class AdminController {
 	}
 
 	@PatchMapping("/reports/{reportId}/approve")
-	public ApiResponse<Boolean> approveReport(@PathVariable String reportId, @RequestBody(required = false) Map<String, Object> body) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> approveReport(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer reportId,
+			@RequestBody(required = false) Map<String, Object> body) {
+		return ApiResponse.success(adminService.approveReport(authId, reportId, body));
 	}
 
 	@PatchMapping("/reports/{reportId}/reject")
-	public ApiResponse<Boolean> rejectReport(@PathVariable String reportId, @RequestBody(required = false) Map<String, Object> body) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> rejectReport(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer reportId,
+			@RequestBody(required = false) Map<String, Object> body) {
+		return ApiResponse.success(adminService.rejectReport(authId, reportId, body));
 	}
 
 	@GetMapping("/settings")
@@ -143,8 +152,10 @@ public class AdminController {
 	}
 
 	@PutMapping("/settings")
-	public ApiResponse<Boolean> updateSettings(@RequestBody Map<String, Object> body) {
-		return ApiResponse.success(true);
+	public ApiResponse<Boolean> updateSettings(
+			@RequestAttribute("authId") Long authId,
+			@RequestBody Map<String, Object> body) {
+		return ApiResponse.success(adminService.updateSettings(authId, body));
 	}
 
 	@GetMapping("/notices")

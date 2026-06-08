@@ -50,12 +50,6 @@ const router = createRouter({
       meta: { tab: 'wanted' },
     },
     {
-      path: '/swap',
-      name: 'swap',
-      component: () => import('../views/front/BazaarView.vue'),
-      meta: { tab: 'swap' },
-    },
-    {
       path: '/season',
       name: 'season',
       component: () => import('../views/front/BazaarView.vue'),
