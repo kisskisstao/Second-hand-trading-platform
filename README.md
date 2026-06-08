@@ -16,7 +16,7 @@
 - 求购置换：新增 `purchases`、`exchanges` 表，支持发布、列表和匹配推荐。
 - 系统通知：管理员下架、上架或删除用户商品时，会给卖家写入系统通知；管理员发布平台公告时，会给目标用户生成系统信息。
 - 支付：已接入支付宝和微信支付的配置入口与下单流程；默认关闭真实支付，避免开发环境误收款。
-- 认证：登录已使用 JWT，受保护接口通过统一认证拦截器校验。
+- 认证：登录已使用 JWT，受保护接口通过统一认证拦截器校验；新注册密码使用带盐 PBKDF2-HMAC-SHA256 哈希存储，并兼容旧 `sha256$` 哈希登录。
 - 异常：后端统一返回 `ApiResponse` 错误结构。
 - 后台数据大盘：统计卡片、交易额走势、分类占比、校区分布和待处理项均从数据库实时聚合。
 - 清空数据：普通用户、商品、商品图片、收藏、留言、订单、聊天、求购、置换、举报、纠纷、通知、公告等演示业务数据默认清空；后续随真实操作写入。
@@ -279,6 +279,14 @@ Authorization: Bearer <jwt>
 
 普通用户接口需要 `USER` JWT，后台接口需要 `ADMIN` JWT。未登录返回 401，权限不匹配返回 403。
 
+WebSocket 连接同样需要在 STOMP `CONNECT` 帧中携带：
+
+```http
+Authorization: Bearer <jwt>
+```
+
+当前 WebSocket 只允许普通用户 token 连接，客户端仅可订阅 `/user/queue/notifications`、`/user/queue/messages` 和 `/topic/broadcast`；客户端直接向 `/app/...` 发送消息已禁用，聊天、通知等写操作统一走受保护的 REST 接口和后端服务推送。
+
 ## 主要页面
 
 - 首页：从真实商品接口展示推荐商品和搜索入口；数据库为空时不再展示演示商品。
@@ -328,6 +336,71 @@ app:
 
 ## 最近验证结果
 
-- 后端 `mvn test` 通过。
+- 后端 `.\mvnw.cmd clean test` 通过。
 - 前端 `npm run build` 通过。
 - 前端构建仍有第三方依赖 pure annotation 和 chunk size warning，不影响运行。
+
+## 新增功能（2026-06-08）
+
+### 1. 用户评价体系
+
+订单完成后，买家可对卖家进行评价，支持 1-5 星评分和文字评价。
+
+- **后端实现**：`ReviewEntity`、`ReviewMapper`、`ReviewService`、`ReviewController`
+- **前端组件**：`OrderReview.vue`（订单评价）、`ReviewList.vue`（评价展示）
+- **API 接口**：
+  - `POST /api/reviews` - 创建评价
+  - `POST /api/orders/{orderId}/reviews` - 按订单创建评价
+  - `GET /api/reviews/user/{userId}` - 获取用户评价列表
+  - `GET /api/reviews/user/{userId}/stats` - 获取用户评分统计（平均分、评价数）
+  - `GET /api/users/{userId}/reviews` - 获取用户评价列表分页包装
+- **业务规则**：
+  - 只有已完成订单的买家才能评价该订单卖家
+  - 评价目标用户由后端根据订单 `seller_id` 推导，前端不能指定任意目标用户
+  - 每个订单每个买家只能评价一次
+  - 评分必须为 1-5 星，评价内容最长 500 字
+  - 评价后自动触发卖家信用积分变更
+
+### 2. 信用积分系统
+
+用户初始信用分为 100 分，根据交易评价动态调整。
+
+- **实现位置**：`UserService` 中的 `updateCreditScore()` 和 `getUserCreditScore()`
+- **积分规则**：
+  - 4-5 星好评：+5 分
+  - 3 星中评：0 分
+  - 1-2 星差评：-10 分
+- **积分范围**：0 - 200 分，使用 `GREATEST(0, LEAST(credit_score + ?, 200))` 限制
+- **应用场景**：评价完成后自动更新，可用于后续交易权限控制
+
+### 3. 实时消息推送
+
+基于 WebSocket + STOMP 协议实现实时消息推送，支持订单通知、聊天消息、系统通知。
+
+- **后端实现**：
+  - `WebSocketConfig` - WebSocket 配置，启用 STOMP 协议、JWT 连接校验和订阅权限限制
+  - `MessageService` - 消息推送服务，支持订单/聊天/系统通知
+  - `WebSocketController` - 保留为控制器占位，当前不开放客户端入站写消息
+  - `NotificationEntity`、`NotificationMapper` - 通知数据持久化
+- **前端实现**：
+  - `NotificationPanel.vue` - 系统通知面板组件
+  - `websocket.js` - WebSocket 服务封装，连接时携带 JWT，并订阅 `/user/queue/notifications`、`/user/queue/messages` 和 `/topic/broadcast`
+- **推送类型**：
+  - **订单通知**：订单状态变更时推送给买卖双方
+  - **聊天消息**：新消息实时推送给会话参与人
+  - **系统通知**：管理员操作、公告发布等推送给目标用户
+  - **广播消息**：全平台公告推送给所有在线用户
+- **安全规则**：
+  - STOMP `CONNECT` 必须携带 `Authorization: Bearer <jwt>`
+  - 只允许订阅当前用户队列和广播主题
+  - 客户端 WebSocket `SEND` 已禁用，避免绕过 REST 鉴权直接写入通知或聊天
+- **技术栈**：Spring Boot WebSocket + SockJS + STOMP
+
+### 新增依赖
+
+**后端**（已添加到 `pom.xml`）：
+- `spring-boot-starter-websocket` - WebSocket 支持
+
+**前端**（已添加到 `package.json`，首次运行仍需执行 `npm install`）：
+- `sockjs-client@1.6.1` - WebSocket 客户端
+- `stompjs@2.3.3` - STOMP 协议客户端

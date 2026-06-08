@@ -149,6 +149,12 @@ public class JwtService {
 		return value.replace("\\\"", "\"").replace("\\\\", "\\");
 	}
 
+	public Long getUserIdFromToken(String token) {
+		return parseAuthorization("Bearer " + token)
+				.map(JwtClaims::id)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "无效的token"));
+	}
+
 	public record JwtClaims(String type, Long id, String account, String role, long expiresAt) {
 		public boolean isUser() {
 			return "USER".equals(type);

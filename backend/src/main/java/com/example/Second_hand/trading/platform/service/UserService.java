@@ -53,7 +53,19 @@ public class UserService {
 	}
 
 	public List<Map<String, Object>> reviews(Integer userId) {
-		return List.of();
+		if (userId == null) {
+			return List.of();
+		}
+		return jdbcTemplate.queryForList("""
+				SELECT r.id AS reviewId, r.order_id AS orderId, r.reviewer_id AS reviewerId,
+				  reviewer.nickname AS reviewerName, r.target_user_id AS targetUserId,
+				  r.rating, r.content, r.created_at AS createdAt
+				FROM reviews r
+				LEFT JOIN users reviewer ON reviewer.id = r.reviewer_id
+				WHERE r.target_user_id = ?
+				ORDER BY r.created_at DESC
+				LIMIT 100
+				""", userId);
 	}
 
 	private Map<String, Object> userById(Long userId) {
@@ -67,5 +79,23 @@ public class UserService {
 				LIMIT 1
 				""", userId);
 		return users.isEmpty() ? Map.of() : users.get(0);
+	}
+
+	public void updateCreditScore(Long userId, int scoreChange) {
+		jdbcTemplate.update("""
+				UPDATE users 
+				SET credit_score = GREATEST(0, LEAST(credit_score + ?, 200))
+				WHERE id = ?
+				""", scoreChange, userId);
+	}
+
+	public int getUserCreditScore(Long userId) {
+		List<Map<String, Object>> result = jdbcTemplate.queryForList("""
+				SELECT credit_score FROM users WHERE id = ? AND deleted = 0
+				""", userId);
+		if (result.isEmpty()) {
+			return 100;
+		}
+		return ((Number) result.get(0).get("credit_score")).intValue();
 	}
 }

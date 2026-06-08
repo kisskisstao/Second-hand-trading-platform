@@ -13,15 +13,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.Second_hand.trading.platform.dto.ApiResponse;
 import com.example.Second_hand.trading.platform.dto.PageResponse;
+import com.example.Second_hand.trading.platform.entity.ReviewEntity;
+import com.example.Second_hand.trading.platform.service.ReviewService;
 import com.example.Second_hand.trading.platform.service.TradeWorkflowService;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
 	private final TradeWorkflowService tradeWorkflowService;
+	private final ReviewService reviewService;
 
-	public OrderController(TradeWorkflowService tradeWorkflowService) {
+	public OrderController(TradeWorkflowService tradeWorkflowService, ReviewService reviewService) {
 		this.tradeWorkflowService = tradeWorkflowService;
+		this.reviewService = reviewService;
 	}
 
 	@PostMapping
@@ -74,7 +78,19 @@ public class OrderController {
 	}
 
 	@PostMapping("/{orderId}/reviews")
-	public ApiResponse<Map<String, Object>> review(@PathVariable Integer orderId, @RequestBody Map<String, Object> body) {
-		return ApiResponse.success(Map.of("reviewId", 8002));
+	public ApiResponse<Map<String, Object>> review(
+			@RequestAttribute("authId") Long authId,
+			@PathVariable Integer orderId,
+			@RequestBody Map<String, Object> body) {
+		Integer rating = body.get("rating") instanceof Number number
+				? number.intValue()
+				: Integer.valueOf(String.valueOf(body.get("rating")));
+		String content = body.get("content") == null ? "" : String.valueOf(body.get("content"));
+		ReviewEntity review = reviewService.createReview(orderId.longValue(), authId, rating, content);
+		return ApiResponse.success(Map.of(
+				"reviewId", review.getId(),
+				"targetUserId", review.getTargetUserId(),
+				"rating", review.getRating(),
+				"content", review.getContent()));
 	}
 }

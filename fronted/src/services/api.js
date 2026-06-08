@@ -105,6 +105,12 @@ export const chatApi = {
   sendMessage: (chatId, data) => api.post(`/chats/${chatId}/messages`, data),
 }
 
+export const reviewApi = {
+  create: (data) => api.post('/reviews', data),
+  getUserReviews: (userId) => api.get(`/reviews/user/${userId}`),
+  getUserRatingStats: (userId) => api.get(`/reviews/user/${userId}/stats`),
+}
+
 export const adminApi = {
   dashboard: () => api.get('/admin/dashboard'),
   users: (params) => api.get('/admin/users', { params }),

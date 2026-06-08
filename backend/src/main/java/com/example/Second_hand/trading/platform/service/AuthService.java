@@ -1,12 +1,18 @@
 package com.example.Second_hand.trading.platform.service;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,7 +21,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
+	private static final String PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256";
+	private static final int PBKDF2_ITERATIONS = 120_000;
+	private static final int PBKDF2_KEY_LENGTH = 256;
+	private static final int SALT_BYTES = 16;
+
 	private final JdbcTemplate jdbcTemplate;
+	private final SecureRandom secureRandom = new SecureRandom();
 
 	public AuthService(JdbcTemplate jdbcTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
@@ -149,6 +161,15 @@ public class AuthService {
 	}
 
 	private String hashPassword(String password) {
+		byte[] salt = new byte[SALT_BYTES];
+		secureRandom.nextBytes(salt);
+		byte[] hash = pbkdf2(password, salt, PBKDF2_ITERATIONS);
+		return "pbkdf2$" + PBKDF2_ITERATIONS + "$"
+				+ HexFormat.of().formatHex(salt) + "$"
+				+ HexFormat.of().formatHex(hash);
+	}
+
+	private String legacySha256(String password) {
 		try {
 			MessageDigest digest = MessageDigest.getInstance("SHA-256");
 			byte[] hash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
@@ -164,10 +185,33 @@ public class AuthService {
 		}
 
 		if (storedPassword.startsWith("sha256$")) {
-			return hashPassword(rawPassword).equals(storedPassword);
+			return MessageDigest.isEqual(
+					legacySha256(rawPassword).getBytes(StandardCharsets.UTF_8),
+					storedPassword.getBytes(StandardCharsets.UTF_8));
+		}
+
+		if (storedPassword.startsWith("pbkdf2$")) {
+			String[] parts = storedPassword.split("\\$");
+			if (parts.length != 4) {
+				return false;
+			}
+			int iterations = Integer.parseInt(parts[1]);
+			byte[] salt = HexFormat.of().parseHex(parts[2]);
+			byte[] expected = HexFormat.of().parseHex(parts[3]);
+			byte[] actual = pbkdf2(rawPassword, salt, iterations);
+			return MessageDigest.isEqual(actual, expected);
 		}
 
 		return storedPassword.equals(rawPassword);
+	}
+
+	private byte[] pbkdf2(String password, byte[] salt, int iterations) {
+		try {
+			KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, iterations, PBKDF2_KEY_LENGTH);
+			return SecretKeyFactory.getInstance(PBKDF2_ALGORITHM).generateSecret(spec).getEncoded();
+		} catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
+			throw new IllegalStateException(PBKDF2_ALGORITHM + " is unavailable", ex);
+		}
 	}
 
 	private Long toLong(Object value) {
